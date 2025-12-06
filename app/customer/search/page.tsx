@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import { useApp } from '../../context/AppContext';
 import { Complaint, ComplaintStatus, Priority, ComplaintCategory } from '../../types';
@@ -8,6 +9,7 @@ import PriorityBadge from '../../components/PriorityBadge';
 import { exportToCSV, exportToExcel } from '../../utils/export';
 
 export default function AdvancedSearchPage() {
+  const router = useRouter();
   const { complaints, filterComplaints, currentUser } = useApp();
   const [filters, setFilters] = useState({
     searchQuery: '',
@@ -25,9 +27,30 @@ export default function AdvancedSearchPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  // Auto-load all complaints on page load for demonstration
+  useEffect(() => {
+    if (complaints.length > 0) {
+      setResults(complaints); // Show all complaints initially for demonstration
+    }
+  }, [complaints]);
+
   const handleSearch = () => {
-    const filtered = filterComplaints(filters);
-    setResults(filtered);
+    // If no filters are applied, show all complaints
+    const hasFilters = filters.searchQuery.trim() || 
+                      filters.status.length > 0 || 
+                      filters.priority.length > 0 || 
+                      filters.category.length > 0 || 
+                      filters.assignedTo || 
+                      (filters.dateRange.start && filters.dateRange.end) ||
+                      filters.tags.length > 0;
+    
+    if (!hasFilters) {
+      // Show all complaints if no filters
+      setResults(complaints);
+    } else {
+      const filtered = filterComplaints(filters);
+      setResults(filtered);
+    }
   };
 
   const handleExportCSV = () => {
@@ -248,10 +271,12 @@ export default function AdvancedSearchPage() {
         )}
 
         {/* Results */}
-        {results.length > 0 && (
+        {(results.length > 0 || complaints.length > 0) && (
           <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <p className="text-base md:text-lg" style={{ color: '#E6E6E6' }}>
-              Found {results.length} complaint(s)
+              {results.length > 0 
+                ? `Found ${results.length} complaint(s)`
+                : `Showing all ${complaints.length} complaint(s)`}
             </p>
             <div className="flex gap-2 md:gap-4">
               <button
@@ -276,12 +301,18 @@ export default function AdvancedSearchPage() {
 
         {/* Results List */}
         <div className="space-y-4">
-          {results.length === 0 ? (
+          {results.length === 0 && complaints.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-xl" style={{ color: '#E6E6E6', opacity: 0.7 }}>
-                {filters.searchQuery || Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v) 
+                {filters.searchQuery || Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : (typeof v === 'object' && v !== null && Object.values(v).some(x => x))) 
                   ? 'No complaints found matching your criteria'
-                  : 'Enter search criteria and click Search'}
+                  : 'No complaints available. Create a new complaint to get started.'}
+              </p>
+            </div>
+          ) : results.length === 0 ? (
+            <div className="text-center py-16">
+              <p className="text-xl" style={{ color: '#E6E6E6', opacity: 0.7 }}>
+                No complaints found matching your criteria. Try adjusting your filters.
               </p>
             </div>
           ) : (
@@ -290,7 +321,15 @@ export default function AdvancedSearchPage() {
                 key={complaint.id}
                 className="rounded-lg p-4 md:p-6 cursor-pointer transition-transform hover:scale-[1.02]"
                 style={{ backgroundColor: '#2A2B30', border: '2px solid #E6E6E6' }}
-                onClick={() => window.location.href = `/customer/complaints/${complaint.id}`}
+                onClick={() => router.push(`/customer/complaints/${complaint.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    router.push(`/customer/complaints/${complaint.id}`);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3 md:mb-4">
                   <div className="flex-1 min-w-0">

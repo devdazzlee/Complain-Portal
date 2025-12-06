@@ -448,13 +448,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       filtered = filtered.filter(c => c.assignedToId === filters.assignedTo);
     }
 
-    if (filters.dateRange) {
-      const start = new Date(filters.dateRange.start);
-      const end = new Date(filters.dateRange.end);
-      filtered = filtered.filter(c => {
-        const date = new Date(c.dateSubmitted);
-        return date >= start && date <= end;
-      });
+    if (filters.dateRange && filters.dateRange.start && filters.dateRange.end) {
+      try {
+        const start = new Date(filters.dateRange.start + 'T00:00:00');
+        const end = new Date(filters.dateRange.end + 'T23:59:59');
+        filtered = filtered.filter(c => {
+          try {
+            const date = new Date(c.dateSubmitted);
+            if (isNaN(date.getTime()) || isNaN(start.getTime()) || isNaN(end.getTime())) {
+              return false;
+            }
+            return date >= start && date <= end;
+          } catch (error) {
+            return false;
+          }
+        });
+      } catch (error) {
+        console.error('Error filtering by date range:', error);
+      }
     }
 
     if (filters.tags && filters.tags.length > 0) {
@@ -665,10 +676,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const getReportData = (dateRange?: { start: string; end: string }): ReportData => {
     const filteredComplaints = dateRange
       ? complaints.filter(c => {
-          const date = new Date(c.dateSubmitted);
-          const start = new Date(dateRange.start);
-          const end = new Date(dateRange.end);
-          return date >= start && date <= end;
+          try {
+            // Parse the dateSubmitted which is in format like "Oct 29, 2025"
+            const complaintDate = new Date(c.dateSubmitted);
+            // Parse the date range which is in format "2025-10-29"
+            const start = new Date(dateRange.start + 'T00:00:00');
+            const end = new Date(dateRange.end + 'T23:59:59');
+            
+            // Check if dates are valid
+            if (isNaN(complaintDate.getTime()) || isNaN(start.getTime()) || isNaN(end.getTime())) {
+              return false;
+            }
+            
+            return complaintDate >= start && complaintDate <= end;
+          } catch (error) {
+            console.error('Error parsing date:', c.dateSubmitted, error);
+            return false;
+          }
         })
       : complaints;
 

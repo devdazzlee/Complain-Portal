@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Layout from '../../components/Layout';
 import { useApp } from '../../context/AppContext';
 import { exportToCSV, exportToExcel } from '../../utils/export';
@@ -8,10 +8,24 @@ import Loader from '../../components/Loader';
 
 export default function ReportsPage() {
   const { getReportData, complaints } = useApp();
-  const [dateRange, setDateRange] = useState({
-    start: '',
-    end: '',
-  });
+  const startDateRef = useRef<HTMLInputElement>(null);
+  const endDateRef = useRef<HTMLInputElement>(null);
+  
+  // Initialize with a date range that includes sample data (last 3 months to ensure data is shown)
+  const getInitialDateRange = () => {
+    const now = new Date();
+    // Set end date to today
+    const endDate = new Date(now);
+    // Set start date to 3 months ago to include sample data
+    const startDate = new Date(now);
+    startDate.setMonth(startDate.getMonth() - 3);
+    return {
+      start: startDate.toISOString().split('T')[0],
+      end: endDate.toISOString().split('T')[0],
+    };
+  };
+
+  const [dateRange, setDateRange] = useState(getInitialDateRange());
   const [reportData, setReportData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -24,6 +38,12 @@ export default function ReportsPage() {
       setLoading(false);
     }, 500);
   };
+
+  // Auto-generate report on page load
+  useEffect(() => {
+    generateReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleExportCSV = () => {
     if (!reportData) return;
@@ -63,6 +83,22 @@ export default function ReportsPage() {
 
   return (
     <Layout role="customer">
+      <style dangerouslySetInnerHTML={{__html: `
+        input[type="date"]::-webkit-calendar-picker-indicator {
+          display: none;
+        }
+        input[type="date"]::-webkit-inner-spin-button,
+        input[type="date"]::-webkit-clear-button {
+          display: none;
+        }
+        .date-input-white::-webkit-calendar-picker-indicator {
+          display: none;
+        }
+        .date-input-white::-webkit-inner-spin-button,
+        .date-input-white::-webkit-clear-button {
+          display: none;
+        }
+      `}} />
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6" style={{ color: '#E6E6E6' }}>
           Reports & Analytics
@@ -74,37 +110,89 @@ export default function ReportsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-4">
             <div>
               <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>Start Date</label>
-              <input
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                className="w-full rounded-lg outline-none"
-                style={{
-                  backgroundColor: '#1F2022',
-                  border: '2px solid #E6E6E6',
-                  color: '#E6E6E6',
-                  fontSize: '1rem',
-                  padding: '14px 18px',
-                  minHeight: '52px',
-                }}
-              />
+              <div className="relative">
+                <input
+                  ref={startDateRef}
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                  className="w-full rounded-lg outline-none date-input-white"
+                  style={{
+                    backgroundColor: '#1F2022',
+                    border: '2px solid #E6E6E6',
+                    color: '#E6E6E6',
+                    fontSize: '1rem',
+                    padding: '14px 18px',
+                    paddingRight: '45px',
+                    minHeight: '52px',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    startDateRef.current?.showPicker?.();
+                  }}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 z-10 cursor-pointer p-1 hover:opacity-80 transition-opacity"
+                  style={{ background: 'transparent', border: 'none' }}
+                >
+                  <svg 
+                    width="20" 
+                    height="20" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="#E6E6E6" 
+                    strokeWidth="2"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                </button>
+              </div>
             </div>
             <div>
               <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>End Date</label>
-              <input
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                className="w-full rounded-lg outline-none"
-                style={{
-                  backgroundColor: '#1F2022',
-                  border: '2px solid #E6E6E6',
-                  color: '#E6E6E6',
-                  fontSize: '1rem',
-                  padding: '14px 18px',
-                  minHeight: '52px',
-                }}
-              />
+              <div className="relative">
+                <input
+                  ref={endDateRef}
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                  className="w-full rounded-lg outline-none date-input-white"
+                  style={{
+                    backgroundColor: '#1F2022',
+                    border: '2px solid #E6E6E6',
+                    color: '#E6E6E6',
+                    fontSize: '1rem',
+                    padding: '14px 18px',
+                    paddingRight: '45px',
+                    minHeight: '52px',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    endDateRef.current?.showPicker?.();
+                  }}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 z-10 cursor-pointer p-1 hover:opacity-80 transition-opacity"
+                  style={{ background: 'transparent', border: 'none' }}
+                >
+                  <svg 
+                    width="20" 
+                    height="20" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="#E6E6E6" 
+                    strokeWidth="2"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4">

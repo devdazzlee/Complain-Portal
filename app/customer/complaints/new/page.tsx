@@ -11,10 +11,9 @@ import {
 } from '@/components/ui/select';
 import Layout from '../../../components/Layout';
 import { useApp } from '../../../context/AppContext';
-import { ProblemType, Priority, ComplaintCategory } from '../../../types';
+import { ProblemType, Priority, ComplaintCategory, FileAttachment } from '../../../types';
 import Loader from '../../../components/Loader';
 import Toast from '../../../components/Toast';
-import TagsInput from '../../../components/TagsInput';
 import FileGallery from '../../../components/FileGallery';
 import { VoiceRecognition } from '../../../utils/voiceRecognition';
 
@@ -23,17 +22,6 @@ const problemTypes: { type: ProblemType; icon: string; label: string }[] = [
   { type: 'Behavior', icon: '😞', label: 'Behavior' },
   { type: 'Missed service', icon: '💊', label: 'Missed service' },
   { type: 'Other', icon: '🏠', label: 'Other' },
-];
-
-const priorities: Priority[] = ['Low', 'Medium', 'High', 'Urgent'];
-
-const categories: ComplaintCategory[] = [
-  'Service Quality',
-  'Staff Behavior',
-  'Timing Issues',
-  'Safety Concerns',
-  'Billing',
-  'Other',
 ];
 
 export default function NewComplaintPage() {
@@ -51,7 +39,7 @@ export default function NewComplaintPage() {
     templateId: '',
   });
   const [isRecording, setIsRecording] = useState(false);
-  const [attachments, setAttachments] = useState<any[]>([]);
+  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const voiceRecognitionRef = useRef<VoiceRecognition | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -140,7 +128,7 @@ export default function NewComplaintPage() {
         const uploaded = await uploadFile(file);
         setAttachments(prev => [...prev, uploaded]);
       }
-    } catch (error) {
+    } catch {
       setToast({ message: 'Error uploading file', type: 'error' });
     } finally {
       setUploading(false);
@@ -223,7 +211,7 @@ export default function NewComplaintPage() {
                 <SelectItem value="Unknown" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Unknown</SelectItem>
               </SelectContent>
             </Select>
-            <p className="mt-2" style={{ color: '#E6E6E6', opacity: 0.7, fontSize: '1rem' }}>If you're not sure, you can leave this empty</p>
+            <p className="mt-2" style={{ color: '#E6E6E6', opacity: 0.7, fontSize: '1rem' }}>If you&apos;re not sure, you can leave this empty</p>
           </div>
 
           {/* Type of Problem */}
@@ -261,122 +249,77 @@ export default function NewComplaintPage() {
             </div>
           </div>
 
-          {/* Category */}
-          <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Category</label>
-            <Select value={formData.category || undefined} onValueChange={(value) => setFormData({ ...formData, category: value as ComplaintCategory })}>
-              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
-                <SelectValue placeholder="Select category (optional)" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
-                {categories.map(cat => (
-                  <SelectItem key={cat} value={cat} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Priority */}
-          <div>
-            <label className="block mb-3 text-base md:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Priority</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
-              {priorities.map((priority) => {
-                const getPriorityColor = (p: Priority) => {
-                  switch (p) {
-                    case 'Urgent': return '#FF3F3F';
-                    case 'High': return '#FF8800';
-                    case 'Medium': return '#2AB3EE';
-                    case 'Low': return '#009200';
-                    default: return '#E6E6E6';
-                  }
-                };
-                return (
-                  <button
-                    key={priority}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, priority })}
-                    className="rounded-lg border-2 transition-all"
-                    style={{
-                      borderColor: formData.priority === priority ? getPriorityColor(priority) : '#E6E6E6',
-                      backgroundColor: formData.priority === priority ? `${getPriorityColor(priority)}40` : 'transparent',
-                      borderWidth: '2px',
-                      padding: '16px 12px',
-                      minHeight: '80px',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (formData.priority !== priority) {
-                        e.currentTarget.style.borderColor = getPriorityColor(priority);
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (formData.priority !== priority) {
-                        e.currentTarget.style.borderColor = '#E6E6E6';
-                      }
-                    }}
-                  >
-                    <div style={{ color: '#E6E6E6', fontSize: '1rem', fontWeight: 500 }}>{priority}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Tags (Optional)</label>
-            <TagsInput
-              tags={formData.tags}
-              onChange={(tags) => setFormData({ ...formData, tags })}
-              placeholder="Add tags to help categorize this complaint..."
-            />
-          </div>
-
           {/* Description */}
           <div>
             <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Describe What Happened</label>
-            <div className="relative">
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Please tell us what happened"
-                rows={8}
-                required
-                className="w-full rounded-lg outline-none transition resize-none placeholder:opacity-50"
-                style={{ 
-                  backgroundColor: '#1F2022', 
-                  borderColor: '#E6E6E6', 
-                  borderWidth: '2px', 
-                  borderStyle: 'solid', 
-                  color: '#E6E6E6',
-                  fontSize: '1.125rem',
-                  padding: '16px 20px',
-                  minHeight: '180px'
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
-                onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
-              />
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Please tell us what happened"
+              rows={8}
+              required
+              className="w-full rounded-lg outline-none transition resize-none placeholder:opacity-50"
+              style={{ 
+                backgroundColor: '#1F2022', 
+                borderColor: '#E6E6E6', 
+                borderWidth: '2px', 
+                borderStyle: 'solid', 
+                color: '#E6E6E6',
+                fontSize: '1.125rem',
+                padding: '16px 20px',
+                minHeight: '180px'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
+              onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
+            />
+            
+            {/* Voice Options */}
+            <div className="mt-4">
               <button
                 type="button"
                 onClick={handleVoiceInput}
-                className="absolute bottom-4 right-4 transition-colors p-2 rounded-full"
-                style={{ 
-                  color: isRecording ? '#FF3F3F' : '#E6E6E6', 
-                  opacity: isRecording ? 1 : 0.7, 
-                  minWidth: '48px', 
-                  minHeight: '48px',
-                  backgroundColor: isRecording ? 'rgba(255, 63, 63, 0.2)' : 'transparent'
+                className="w-full rounded-lg transition-all flex items-center justify-center gap-3 p-4 md:p-5 relative overflow-hidden"
+                style={{
+                  backgroundColor: isRecording ? '#FF3F3F' : '#2AB3EE',
+                  border: 'none',
+                  minHeight: '60px',
+                  boxShadow: isRecording 
+                    ? '0 4px 20px rgba(255, 63, 63, 0.4)' 
+                    : '0 4px 15px rgba(42, 179, 238, 0.3)',
                 }}
-                onMouseEnter={(e) => !isRecording && (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={(e) => !isRecording && (e.currentTarget.style.opacity = '0.7')}
-                title={isRecording ? 'Stop recording' : 'Start voice input'}
+                onMouseEnter={(e) => {
+                  if (!isRecording) {
+                    e.currentTarget.style.backgroundColor = '#1F8FD0';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(42, 179, 238, 0.5)';
+                  } else {
+                    e.currentTarget.style.backgroundColor = '#FF1F1F';
+                    e.currentTarget.style.boxShadow = '0 6px 25px rgba(255, 63, 63, 0.5)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isRecording) {
+                    e.currentTarget.style.backgroundColor = '#2AB3EE';
+                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(42, 179, 238, 0.3)';
+                  } else {
+                    e.currentTarget.style.backgroundColor = '#FF3F3F';
+                    e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 63, 63, 0.4)';
+                  }
+                }}
               >
-                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                </svg>
-                {isRecording && (
-                  <span className="absolute inset-0 rounded-full animate-ping" style={{ backgroundColor: '#FF3F3F', opacity: 0.3 }}></span>
+                {isRecording ? (
+                  <>
+                    <svg className="w-6 h-6 md:w-7 md:h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <rect x="6" y="6" width="12" height="12" rx="2" />
+                    </svg>
+                    <span className="text-base md:text-lg font-bold text-white">Stop Recording</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-6 h-6 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                    <span className="text-base md:text-lg font-bold text-white">Record Voice</span>
+                  </>
                 )}
               </button>
             </div>
@@ -455,7 +398,7 @@ export default function NewComplaintPage() {
           {/* Info Box */}
           <div className="rounded-lg p-5" style={{ backgroundColor: '#2A2B30', borderColor: '#009200', borderWidth: '2px', borderStyle: 'solid' }}>
             <p style={{ color: '#009200', fontSize: '1.125rem', lineHeight: '1.7' }}>
-              Our staff will review your concern within 2-3 working days. You'll see the status update on your dashboard.
+              Our staff will review your concern within 2-3 working days. You&apos;ll see the status update on your dashboard.
             </p>
           </div>
 
