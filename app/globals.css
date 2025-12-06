@@ -1,26 +1,433 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "react-day-picker/style.css";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand Colors */
+  --color-primary: #2AB3EE;
+  --color-light-pink: #FF8800;
+  --color-red: #FF3F3F;
+  --color-dark-bg: #1F2022;
+  --color-card-bg: #2A2B30;
+  --color-light-gray: #E6E6E6;
+  --color-success: #009200;
+  --color-dark-red: #CD0000;
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-poppins);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-poppins), 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 18px; /* Base font size increased for accessibility */
+  line-height: 1.6;
+}
+
+/* Accessibility - Larger text sizes for older users */
+h1 {
+  font-size: 2.5rem !important; /* 40px */
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: 2rem !important; /* 32px */
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+h3 {
+  font-size: 1.5rem !important; /* 24px */
+  font-weight: 600;
+}
+
+p, span, div {
+  font-size: 1.125rem !important; /* 18px base */
+}
+
+label {
+  font-size: 1.125rem !important; /* 18px */
+  font-weight: 500;
+}
+
+button {
+  font-size: 1.125rem !important; /* 18px */
+  font-weight: 600;
+  padding: 14px 28px !important; /* Larger buttons */
+  min-height: 52px; /* Minimum touch target size */
+}
+
+input, textarea, select {
+  font-size: 1.125rem !important; /* 18px */
+  padding: 16px 20px !important; /* Larger inputs */
+  min-height: 56px; /* Larger touch targets */
+  width: 100% !important;
+  box-sizing: border-box !important;
+  display: block;
+  text-decoration: none !important;
+  text-decoration-line: none !important;
+  background-image: none !important;
+}
+
+input[type="date"] {
+  color-scheme: dark;
+  position: relative;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  opacity: 0.8;
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #E6E6E6 !important;
+  opacity: 0.5 !important;
+  font-size: 1.125rem !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  word-wrap: break-word !important;
+}
+
+a {
+  font-size: 1.125rem !important; /* 18px */
+}
+
+/* Input placeholder color */
+input::placeholder,
+textarea::placeholder {
+  color: #E6E6E6;
+  opacity: 0.5;
+  font-size: 1.125rem !important; /* 18px */
+}
+
+/* Root cause fix: Browser autofill applies underline decoration that needs to be completely overridden */
+/* Use transition trick to prevent browser from re-applying autofill styles */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+input:autofill,
+input:autofill:hover,
+input:autofill:focus,
+input:autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #1F2022 inset !important;
+  box-shadow: 0 0 0 1000px #1F2022 inset !important;
+  -webkit-text-fill-color: #E6E6E6 !important;
+  color: #E6E6E6 !important;
+  border: 2px solid #E6E6E6 !important;
+  text-decoration: none !important;
+  text-decoration-line: none !important;
+  text-decoration-color: transparent !important;
+  text-decoration-style: none !important;
+  text-underline-offset: 0 !important;
+  text-underline-position: unset !important;
+  background-color: #1F2022 !important;
+  background-image: none !important;
+  outline: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  /* Critical: Transition trick prevents browser from re-applying autofill background */
+  transition: background-color 5000s ease-in-out 0s, color 5000s ease-in-out 0s !important;
+  -webkit-transition: background-color 5000s ease-in-out 0s, color 5000s ease-in-out 0s !important;
+}
+
+/* Target first-line pseudo-element which browsers use for autofill text decoration */
+input:-webkit-autofill::first-line,
+input:autofill::first-line {
+  -webkit-text-fill-color: #E6E6E6 !important;
+  color: #E6E6E6 !important;
+  text-decoration: none !important;
+  text-decoration-line: none !important;
+}
+
+/* Remove any autofill underline/line indicators from pseudo-elements */
+input:-webkit-autofill::after,
+input:-webkit-autofill::before,
+input:autofill::after,
+input:autofill::before {
+  display: none !important;
+  content: none !important;
+  text-decoration: none !important;
+}
+
+/* Specific rules for email and password inputs */
+input[type="email"]:-webkit-autofill,
+input[type="email"]:autofill,
+input[type="password"]:-webkit-autofill,
+input[type="password"]:autofill,
+input[type="text"]:-webkit-autofill,
+input[type="text"]:autofill {
+  border: 2px solid #E6E6E6 !important;
+  text-decoration: none !important;
+  text-decoration-line: none !important;
+  background-image: none !important;
+  -webkit-box-shadow: 0 0 0 1000px #1F2022 inset !important;
+  box-shadow: 0 0 0 1000px #1F2022 inset !important;
+}
+
+/* Remove password manager UI indicators */
+input::-webkit-credentials-auto-fill-button,
+input::-webkit-strong-password-auto-fill-button {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  right: -9999px !important;
+}
+
+/* Remove webkit textfield decoration container (this is the root cause of the line) */
+input[type="password"]::-webkit-textfield-decoration-container,
+input[type="email"]::-webkit-textfield-decoration-container,
+input[type="text"]::-webkit-textfield-decoration-container {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Remove any overlay lines from all pseudo-elements */
+input::after,
+input::before {
+  content: none !important;
+  display: none !important;
+}
+
+/* Brand Colors */
+.text-primary {
+  color: #00B0FF !important;
+}
+
+.bg-primary {
+  background-color: var(--color-primary) !important;
+}
+
+.bg-card {
+  background-color: var(--color-card-bg) !important;
+}
+
+.bg-success {
+  background-color: var(--color-success) !important;
+}
+
+.bg-error {
+  background-color: var(--color-red) !important;
+}
+
+.bg-dark-red {
+  background-color: var(--color-dark-red) !important;
+}
+
+.text-primary-color {
+  color: var(--color-primary) !important;
+}
+
+.text-success {
+  color: var(--color-success) !important;
+}
+
+.text-error {
+  color: var(--color-red) !important;
+}
+
+.border-light {
+  border-color: var(--color-light-gray) !important;
+}
+
+/* Custom scrollbar - Larger for accessibility */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-dark-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-card-bg);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+/* Focus states for accessibility - prevent double borders */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: #2AB3EE !important;
+}
+
+*:focus-visible:not(input):not(textarea):not(select) {
+  outline: 3px solid #2AB3EE;
+  outline-offset: 2px;
+}
+
+/* Larger touch targets for mobile */
+@media (max-width: 768px) {
+  button, a, input, select, textarea {
+    min-height: 48px !important;
+  }
+}
+
+/* Toast animation */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Calendar dropdown styles */
+.rdp-dropdown {
+  background-color: #1F2022 !important;
+  border: 1px solid #E6E6E6 !important;
+  color: #E6E6E6 !important;
+  border-radius: 0.375rem !important;
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.875rem !important;
+}
+
+.rdp-dropdown:focus {
+  outline: none !important;
+  border-color: #2AB3EE !important;
+}
+
+.rdp-dropdown option {
+  background-color: #1F2022 !important;
+  color: #E6E6E6 !important;
 }
