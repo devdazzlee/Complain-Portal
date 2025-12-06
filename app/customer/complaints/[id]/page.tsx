@@ -197,11 +197,8 @@ export default function ComplaintDetailPage() {
           <div className="space-y-4 md:space-y-5">
             {complaint.timeline.map((item, index) => (
               <div key={index} className="flex items-start gap-3 md:gap-5">
-                <div className={`shrink-0 rounded-full flex items-center justify-center`}
+                <div className={`shrink-0 rounded-full flex items-center justify-center w-10 h-10 md:w-12 md:h-12`}
                   style={{
-                    width: '40px',
-                    height: '40px',
-                    md: { width: '48px', height: '48px' },
                     backgroundColor: item.isRefused 
                       ? '#FF3F3F' 
                       : item.isCompleted 

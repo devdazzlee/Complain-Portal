@@ -84,11 +84,8 @@ export default function ReportsPage() {
                   border: '2px solid #E6E6E6',
                   color: '#E6E6E6',
                   fontSize: '1rem',
-                  md: { fontSize: '1.125rem' },
                   padding: '14px 18px',
-                  md: { padding: '16px 20px' },
                   minHeight: '52px',
-                  md: { minHeight: '56px' },
                 }}
               />
             </div>
@@ -104,11 +101,8 @@ export default function ReportsPage() {
                   border: '2px solid #E6E6E6',
                   color: '#E6E6E6',
                   fontSize: '1rem',
-                  md: { fontSize: '1.125rem' },
                   padding: '14px 18px',
-                  md: { padding: '16px 20px' },
                   minHeight: '52px',
-                  md: { minHeight: '56px' },
                 }}
               />
             </div>
@@ -118,7 +112,7 @@ export default function ReportsPage() {
               onClick={generateReport}
               disabled={loading}
               className="w-full sm:w-auto px-4 md:px-6 py-3 rounded-lg font-semibold text-base md:text-lg flex items-center justify-center gap-2"
-              style={{ backgroundColor: loading ? '#2A2B30' : '#2AB3EE', color: '#E6E6E6', minHeight: '52px', md: { minHeight: '56px' } }}
+              style={{ backgroundColor: loading ? '#2A2B30' : '#2AB3EE', color: '#E6E6E6', minHeight: '52px' }}
             >
               {loading ? (
                 <>
@@ -135,7 +129,7 @@ export default function ReportsPage() {
                   onClick={handleExportCSV}
                   disabled={exporting}
                   className="w-full sm:w-auto px-4 md:px-6 py-3 rounded-lg font-semibold text-base md:text-lg whitespace-nowrap"
-                  style={{ backgroundColor: exporting ? '#2A2B30' : '#009200', color: '#E6E6E6', minHeight: '52px', md: { minHeight: '56px' } }}
+                  style={{ backgroundColor: exporting ? '#2A2B30' : '#009200', color: '#E6E6E6', minHeight: '52px' }}
                 >
                   {exporting ? 'Exporting...' : 'Export CSV'}
                 </button>
@@ -143,7 +137,7 @@ export default function ReportsPage() {
                   onClick={handleExportExcel}
                   disabled={exporting}
                   className="w-full sm:w-auto px-4 md:px-6 py-3 rounded-lg font-semibold text-base md:text-lg whitespace-nowrap"
-                  style={{ backgroundColor: exporting ? '#2A2B30' : '#009200', color: '#E6E6E6', minHeight: '52px', md: { minHeight: '56px' } }}
+                  style={{ backgroundColor: exporting ? '#2A2B30' : '#009200', color: '#E6E6E6', minHeight: '52px' }}
                 >
                   {exporting ? 'Exporting...' : 'Export Excel'}
                 </button>

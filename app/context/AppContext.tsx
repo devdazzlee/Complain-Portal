@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { 
   User, Complaint, Notification, DashboardStats, Comment, FileAttachment, 
-  Priority, ComplaintCategory, FilterOptions, ReportData, ComplaintTemplate 
+  Priority, ComplaintCategory, FilterOptions, ReportData, ComplaintTemplate, ComplaintStatus 
 } from '../types';
 
 interface AppContextType {
@@ -316,7 +316,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const newComplaint: Complaint = {
       ...complaintData,
-      priority: complaintData.priority || 'Medium',
+      priority: 'Medium',
       id: Date.now().toString(),
       complaintId: generateComplaintId(),
       dateSubmitted: dateStr,

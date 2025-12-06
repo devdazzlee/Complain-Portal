@@ -114,14 +114,14 @@ export default function AdvancedSearchPage() {
               <button
                 onClick={handleSearch}
                 className="flex-1 sm:flex-none px-4 md:px-6 py-3 rounded-lg font-semibold text-base md:text-lg whitespace-nowrap"
-                style={{ backgroundColor: '#2AB3EE', color: '#E6E6E6', minHeight: '52px', md: { minHeight: '56px' } }}
+                style={{ backgroundColor: '#2AB3EE', color: '#E6E6E6', minHeight: '52px' }}
               >
                 Search
               </button>
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="flex-1 sm:flex-none px-4 md:px-6 py-3 rounded-lg font-semibold text-base md:text-lg whitespace-nowrap"
-                style={{ backgroundColor: '#2A2B30', color: '#E6E6E6', border: '2px solid #E6E6E6', minHeight: '52px', md: { minHeight: '56px' } }}
+                style={{ backgroundColor: '#2A2B30', color: '#E6E6E6', border: '2px solid #E6E6E6', minHeight: '52px' }}
               >
                 {showFilters ? 'Hide' : 'Show'} Filters
               </button>
@@ -211,11 +211,8 @@ export default function AdvancedSearchPage() {
                     border: '2px solid #E6E6E6',
                     color: '#E6E6E6',
                     fontSize: '1rem',
-                    md: { fontSize: '1.125rem' },
                     padding: '14px 18px',
-                    md: { padding: '16px 20px' },
                     minHeight: '52px',
-                    md: { minHeight: '56px' },
                   }}
                 />
               </div>
@@ -231,11 +228,8 @@ export default function AdvancedSearchPage() {
                     border: '2px solid #E6E6E6',
                     color: '#E6E6E6',
                     fontSize: '1rem',
-                    md: { fontSize: '1.125rem' },
                     padding: '14px 18px',
-                    md: { padding: '16px 20px' },
                     minHeight: '52px',
-                    md: { minHeight: '56px' },
                   }}
                 />
               </div>
@@ -245,7 +239,7 @@ export default function AdvancedSearchPage() {
               <button
                 onClick={clearFilters}
                 className="w-full sm:w-auto px-4 md:px-6 py-3 rounded-lg font-semibold text-base md:text-lg"
-                style={{ backgroundColor: '#2A2B30', color: '#E6E6E6', border: '2px solid #E6E6E6', minHeight: '52px', md: { minHeight: '56px' } }}
+                style={{ backgroundColor: '#2A2B30', color: '#E6E6E6', border: '2px solid #E6E6E6', minHeight: '52px' }}
               >
                 Clear All
               </button>
@@ -264,7 +258,7 @@ export default function AdvancedSearchPage() {
                 onClick={handleExportCSV}
                 disabled={exporting}
                 className="flex-1 sm:flex-none px-3 md:px-4 py-2 rounded-lg font-semibold text-sm md:text-base whitespace-nowrap"
-                style={{ backgroundColor: exporting ? '#2A2B30' : '#009200', color: '#E6E6E6', minHeight: '44px', md: { minHeight: '48px' } }}
+                style={{ backgroundColor: exporting ? '#2A2B30' : '#009200', color: '#E6E6E6', minHeight: '44px' }}
               >
                 {exporting ? 'Exporting...' : 'Export CSV'}
               </button>
@@ -272,7 +266,7 @@ export default function AdvancedSearchPage() {
                 onClick={handleExportExcel}
                 disabled={exporting}
                 className="flex-1 sm:flex-none px-3 md:px-4 py-2 rounded-lg font-semibold text-sm md:text-base whitespace-nowrap"
-                style={{ backgroundColor: exporting ? '#2A2B30' : '#009200', color: '#E6E6E6', minHeight: '44px', md: { minHeight: '48px' } }}
+                style={{ backgroundColor: exporting ? '#2A2B30' : '#009200', color: '#E6E6E6', minHeight: '44px' }}
               >
                 {exporting ? 'Exporting...' : 'Export Excel'}
               </button>

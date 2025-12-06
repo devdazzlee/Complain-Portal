@@ -1,6 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import Layout from '../../components/Layout';
 import { useApp } from '../../context/AppContext';
 import { Complaint } from '../../types';
@@ -96,7 +103,6 @@ export default function AssignmentWorkflowPage() {
                 backgroundColor: loading || !selectedComplaint || !selectedProvider ? '#2A2B30' : '#2AB3EE',
                 color: '#E6E6E6',
                 minHeight: '52px',
-                md: { minHeight: '56px' },
                 opacity: loading || !selectedComplaint || !selectedProvider ? 0.5 : 1,
               }}
             >

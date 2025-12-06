@@ -64,7 +64,7 @@ export default function FileGallery({ files, onDelete, canDelete = false }: File
                     onDelete(file.id);
                   }}
                   className="px-2 md:px-3 py-1 rounded text-xs md:text-sm mt-2 whitespace-nowrap"
-                  style={{ backgroundColor: '#FF3F3F', color: '#E6E6E6', minHeight: '32px', md: { minHeight: '36px' } }}
+                  style={{ backgroundColor: '#FF3F3F', color: '#E6E6E6', minHeight: '32px' }}
                 >
                   Delete
                 </button>

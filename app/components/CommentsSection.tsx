@@ -189,14 +189,14 @@ export default function CommentsSection({ complaintId }: CommentsSectionProps) {
                     <button
                       onClick={() => handleEdit(comment)}
                       className="px-2 md:px-3 py-1 rounded text-xs md:text-sm whitespace-nowrap"
-                      style={{ backgroundColor: '#2AB3EE', color: '#E6E6E6', minHeight: '36px', md: { minHeight: '40px' } }}
+                      style={{ backgroundColor: '#2AB3EE', color: '#E6E6E6', minHeight: '36px' }}
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleDelete(comment.id)}
                       className="px-2 md:px-3 py-1 rounded text-xs md:text-sm whitespace-nowrap"
-                      style={{ backgroundColor: '#FF3F3F', color: '#E6E6E6', minHeight: '36px', md: { minHeight: '40px' } }}
+                      style={{ backgroundColor: '#FF3F3F', color: '#E6E6E6', minHeight: '36px' }}
                     >
                       Delete
                     </button>
@@ -342,7 +342,6 @@ export default function CommentsSection({ complaintId }: CommentsSectionProps) {
               border: '2px solid #E6E6E6',
               opacity: uploading ? 0.5 : 1,
               minHeight: '44px',
-              md: { minHeight: '48px' },
             }}
           >
             {uploading ? 'Uploading...' : '📎 Attach Files'}
@@ -356,7 +355,6 @@ export default function CommentsSection({ complaintId }: CommentsSectionProps) {
               color: '#E6E6E6',
               opacity: (!newComment.trim() && attachments.length === 0) || uploading ? 0.5 : 1,
               minHeight: '44px',
-              md: { minHeight: '48px' },
             }}
           >
             Post Comment

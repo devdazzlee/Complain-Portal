@@ -102,7 +102,6 @@ export default function NewComplaintPage() {
       caretaker: formData.caretaker || 'Unknown',
       typeOfProblem: formData.typeOfProblem as ProblemType,
       category: formData.category || undefined,
-      priority: formData.priority,
       description: formData.description,
       tags: formData.tags.length > 0 ? formData.tags : undefined,
       attachments: attachments.length > 0 ? attachments : undefined,
@@ -304,9 +303,7 @@ export default function NewComplaintPage() {
                       backgroundColor: formData.priority === priority ? `${getPriorityColor(priority)}40` : 'transparent',
                       borderWidth: '2px',
                       padding: '16px 12px',
-                      md: { padding: '20px 16px' },
                       minHeight: '80px',
-                      md: { minHeight: '100px' }
                     }}
                     onMouseEnter={(e) => {
                       if (formData.priority !== priority) {
