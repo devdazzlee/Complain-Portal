@@ -10,17 +10,17 @@ import Sidebar from './Sidebar';
 
 interface LayoutProps {
   children: React.ReactNode;
-  role?: 'customer' | 'provider' | 'admin';
+  role?: 'provider' | 'admin';
 }
 
-export default function Layout({ children, role = 'customer' }: LayoutProps) {
+export default function Layout({ children, role = 'provider' }: LayoutProps) {
   const { currentUser, unreadCount } = useApp();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   if (!currentUser) return <>{children}</>;
 
-  const dashboardPath = role === 'customer' ? '/customer/dashboard' : role === 'provider' ? '/provider/dashboard' : '/admin/dashboard';
-  const notificationsPath = role === 'customer' ? '/customer/notifications' : role === 'provider' ? '/provider/notifications' : '/admin/notifications';
+  const dashboardPath = role === 'provider' ? '/provider/dashboard' : '/admin/dashboard';
+  const notificationsPath = role === 'provider' ? '/provider/notifications' : '/admin/notifications';
 
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#1F2022', color: '#E6E6E6' }}>
@@ -40,7 +40,7 @@ export default function Layout({ children, role = 'customer' }: LayoutProps) {
                 </svg>
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 text-white rounded-full w-6 h-6 flex items-center justify-center font-semibold" style={{ backgroundColor: '#FF3F3F', fontSize: '0.875rem' }}>
-                    {unreadCount > 9 ? '9+' : unreadCount}
+                    {unreadCount > 9 ? '9' : unreadCount}
                   </span>
                 )}
               </Link>
@@ -69,9 +69,9 @@ export default function Layout({ children, role = 'customer' }: LayoutProps) {
         {/* Footer */}
         <footer style={{ backgroundColor: '#2A2B30', borderTopColor: '#E6E6E6' }} className="border-t px-4 py-4 md:py-6 shrink-0">
           <div className="flex flex-wrap gap-4 md:gap-6 lg:gap-8 justify-center md:justify-start text-base md:text-lg" style={{ color: '#E6E6E6' }}>
-            <Link href="/customer/help" className="transition-colors font-medium" style={{ color: '#E6E6E6' }} onMouseEnter={(e) => e.currentTarget.style.color = '#2AB3EE'} onMouseLeave={(e) => e.currentTarget.style.color = '#E6E6E6'}>Help</Link>
-            <Link href="/customer/help" className="transition-colors font-medium" style={{ color: '#E6E6E6' }} onMouseEnter={(e) => e.currentTarget.style.color = '#2AB3EE'} onMouseLeave={(e) => e.currentTarget.style.color = '#E6E6E6'}>Support</Link>
-            <Link href="/customer/privacy" className="transition-colors font-medium" style={{ color: '#E6E6E6' }} onMouseEnter={(e) => e.currentTarget.style.color = '#2AB3EE'} onMouseLeave={(e) => e.currentTarget.style.color = '#E6E6E6'}>Privacy Policy</Link>
+            <Link href="/provider/help" className="transition-colors font-medium" style={{ color: '#E6E6E6' }} onMouseEnter={(e) => e.currentTarget.style.color = '#2AB3EE'} onMouseLeave={(e) => e.currentTarget.style.color = '#E6E6E6'}>Help</Link>
+            <Link href="/provider/help" className="transition-colors font-medium" style={{ color: '#E6E6E6' }} onMouseEnter={(e) => e.currentTarget.style.color = '#2AB3EE'} onMouseLeave={(e) => e.currentTarget.style.color = '#E6E6E6'}>Support</Link>
+            <Link href="/provider/privacy" className="transition-colors font-medium" style={{ color: '#E6E6E6' }} onMouseEnter={(e) => e.currentTarget.style.color = '#2AB3EE'} onMouseLeave={(e) => e.currentTarget.style.color = '#E6E6E6'}>Privacy Policy</Link>
           </div>
         </footer>
 

@@ -11,7 +11,7 @@ interface SearchModalProps {
 }
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
-  const { complaints } = useApp();
+  const { complaints, currentUser } = useApp();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredComplaints, setFilteredComplaints] = useState<Complaint[]>([]);
@@ -33,7 +33,13 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   }, [searchQuery, complaints]);
 
   const handleComplaintClick = (id: string) => {
-    router.push(`/customer/complaints/${id}`);
+    // Determine the correct route based on user role
+    const role = currentUser?.role || 'provider';
+    if (role === 'admin') {
+      router.push(`/admin/complaints/${id}`);
+    } else {
+      router.push(`/provider/complaints/${id}`);
+    }
     onClose();
   };
 

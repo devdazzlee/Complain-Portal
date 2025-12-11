@@ -115,6 +115,39 @@ p, span, div {
   font-size: 1.125rem !important; /* 18px base */
 }
 
+/* Exception for reports page large numbers and labels */
+.admin-reports-number {
+  font-size: 2rem !important; /* 32px */
+}
+
+@media (min-width: 768px) {
+  .admin-reports-number {
+    font-size: 2.5rem !important; /* 40px */
+  }
+}
+
+@media (min-width: 1024px) {
+  .admin-reports-number {
+    font-size: 3rem !important; /* 48px */
+  }
+}
+
+.admin-reports-label {
+  font-size: 0.95rem !important; /* 15.2px */
+}
+
+@media (min-width: 768px) {
+  .admin-reports-label {
+    font-size: 1rem !important; /* 16px */
+  }
+}
+
+@media (min-width: 1024px) {
+  .admin-reports-label {
+    font-size: 1.125rem !important; /* 18px */
+  }
+}
+
 label {
   font-size: 1.125rem !important; /* 18px */
   font-weight: 500;
@@ -125,6 +158,60 @@ button {
   font-weight: 600;
   padding: 14px 28px !important; /* Larger buttons */
   min-height: 52px; /* Minimum touch target size */
+}
+
+/* Login Submit Button - Root Cause Fix: All states handled in CSS, no inline styles */
+/* Removed inline backgroundColor to prevent conflicts - CSS handles everything */
+.login-submit-button {
+  background-color: #2AB3EE !important;
+  background-image: none !important;
+  transition: transform 0.1s ease !important;
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+.login-submit-button:not(:disabled):not(.loading):hover {
+  background-color: #1F8FD0 !important;
+  background-image: none !important;
+}
+
+.login-submit-button:not(:disabled):not(.loading):active {
+  background-color: #1F8FD0 !important;
+  background-image: none !important;
+  transform: scale(0.98) !important;
+}
+
+.login-submit-button:not(:disabled):not(.loading):focus,
+.login-submit-button:not(:disabled):not(.loading):focus-visible {
+  background-color: #2AB3EE !important;
+  background-image: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.login-submit-button:disabled,
+.login-submit-button.loading {
+  background-color: #2A2B30 !important;
+  background-image: none !important;
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+.login-submit-button.loading:active {
+  background-color: #2A2B30 !important;
+  background-image: none !important;
+  transform: none !important;
+}
+
+/* Override any browser default button styles */
+.login-submit-button::-moz-focus-inner {
+  border: 0 !important;
+  background-color: #2AB3EE !important;
+}
+
+.login-submit-button:not(:disabled):not(.loading)::-moz-focus-inner:active {
+  background-color: #1F8FD0 !important;
 }
 
 input, textarea, select {
@@ -430,4 +517,21 @@ body {
 .rdp-dropdown option {
   background-color: #1F2022 !important;
   color: #E6E6E6 !important;
+}
+
+/* Page Loader Animations */
+@keyframes progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-progress {
+  animation: progress 1.5s ease-in-out infinite;
 }
