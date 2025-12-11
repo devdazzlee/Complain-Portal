@@ -16,7 +16,7 @@ import Loader from '../../components/Loader';
 import Pagination from '../../components/Pagination';
 
 function UserManagementContent() {
-  const { users, updateUser } = useApp();
+  const { users, updateUserById } = useApp();
   const searchParams = useSearchParams();
   const [roleFilter, setRoleFilter] = useState<'All' | 'provider' | 'admin'>('All');
 
@@ -70,7 +70,7 @@ function UserManagementContent() {
   const handleSave = () => {
     if (!editingUser) return;
     
-    updateUser(editingUser, editForm);
+    updateUserById(editingUser, editForm);
     setToast({ message: 'User updated successfully', type: 'success' });
     setEditingUser(null);
     setTimeout(() => setToast(null), 3000);

@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useLoading } from '../context/LoadingContext';
 
-export default function PageLoader() {
+function PageLoaderContent() {
   const [isPageLoading, setIsPageLoading] = useState(false);
   const { isLoading: isDataLoading } = useLoading();
   const pathname = usePathname();
@@ -55,6 +55,14 @@ export default function PageLoader() {
         </svg>
       </div>
     </div>
+  );
+}
+
+export default function PageLoader() {
+  return (
+    <Suspense fallback={null}>
+      <PageLoaderContent />
+    </Suspense>
   );
 }
 

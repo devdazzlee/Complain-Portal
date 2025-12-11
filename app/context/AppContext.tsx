@@ -7,7 +7,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
-import {
+import { 
   User,
   Complaint,
   Notification,
@@ -32,6 +32,7 @@ interface AppContextType {
   isAuthenticated: boolean;
   updatePassword: (oldPassword: string, newPassword: string) => boolean;
   updateUser: (updates: Partial<User>) => void;
+  updateUserById: (userId: string, updates: Partial<User>) => void;
 
   // Complaints
   complaints: Complaint[];
@@ -1914,6 +1915,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsers(users.map((u) => (u.id === currentUser.id ? updatedUser : u)));
   };
 
+  const updateUserById = (userId: string, updates: Partial<User>) => {
+    const userToUpdate = users.find((u) => u.id === userId);
+    if (!userToUpdate) return;
+    
+    const updatedUser = { ...userToUpdate, ...updates };
+    setUsers(users.map((u) => (u.id === userId ? updatedUser : u)));
+    
+    // If updating the current user, also update currentUser
+    if (currentUser && currentUser.id === userId) {
+      setCurrentUser(updatedUser);
+    }
+  };
+
   const generateComplaintId = (): string => {
     const num = complaints.length + 1;
     return `CMP-${String(num).padStart(4, "0")}`;
@@ -1972,7 +1986,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     setComplaints([newComplaint, ...complaints]);
-
+    
     addNotification({
       message: `Your complaint ${newComplaint.complaintId} has been received and is under review.`,
       complaintId: newComplaint.complaintId,
@@ -1993,10 +2007,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setComplaints(
       complaints.map((c) => {
-        if (c.id === id) {
-          return { ...c, ...updates, lastUpdate: timeStr };
-        }
-        return c;
+      if (c.id === id) {
+        return { ...c, ...updates, lastUpdate: timeStr };
+      }
+      return c;
       })
     );
   };
@@ -2078,7 +2092,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }),
           status: "Received",
           description: "Complaint received by support team.",
-          isCompleted: true,
+        isCompleted: true,
           userId: currentUser?.id || "1",
           userName: currentUser?.name || "System",
         },
@@ -2146,10 +2160,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const query = filters.searchQuery.toLowerCase();
       filtered = filtered.filter(
         (c) =>
-          c.complaintId.toLowerCase().includes(query) ||
-          c.caretaker.toLowerCase().includes(query) ||
-          c.description.toLowerCase().includes(query) ||
-          c.typeOfProblem.toLowerCase().includes(query)
+        c.complaintId.toLowerCase().includes(query) ||
+        c.caretaker.toLowerCase().includes(query) ||
+        c.description.toLowerCase().includes(query) ||
+        c.typeOfProblem.toLowerCase().includes(query)
       );
     }
 
@@ -2161,11 +2175,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const lowerQuery = query.toLowerCase();
     return complaints.filter(
       (c) =>
-        c.complaintId.toLowerCase().includes(lowerQuery) ||
-        c.caretaker.toLowerCase().includes(lowerQuery) ||
-        c.description.toLowerCase().includes(lowerQuery) ||
-        c.typeOfProblem.toLowerCase().includes(lowerQuery) ||
-        (c.category && c.category.toLowerCase().includes(lowerQuery)) ||
+      c.complaintId.toLowerCase().includes(lowerQuery) ||
+      c.caretaker.toLowerCase().includes(lowerQuery) ||
+      c.description.toLowerCase().includes(lowerQuery) ||
+      c.typeOfProblem.toLowerCase().includes(lowerQuery) ||
+      (c.category && c.category.toLowerCase().includes(lowerQuery)) ||
         (c.tags && c.tags.some((tag) => tag.toLowerCase().includes(lowerQuery)))
     );
   };
@@ -2249,7 +2263,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const getComments = (complaintId: string): Comment[] => {
     const complaint = getComplaintById(complaintId);
     if (!complaint) return [];
-
+    
     if (currentUser?.role === "provider") {
       return (complaint.comments || []).filter((c) => !c.isInternal);
     }
@@ -2277,7 +2291,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const uploadFile = async (file: File): Promise<FileAttachment> => {
     // Simulate file upload
     await new Promise((resolve) => setTimeout(resolve, 500));
-
+    
     return {
       id: Date.now().toString(),
       name: file.name,
@@ -2375,7 +2389,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 c.assignedToId === currentUser.id &&
                 (c.status === "Open" || c.status === "In Progress")
             ).length
-          : undefined,
+        : undefined,
       overdue: userComplaints.filter((c) => {
         if (!c.dueDate) return false;
         return (
@@ -2401,7 +2415,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             // Parse the date range which is in format "2025-10-29"
             const start = new Date(dateRange.start + "T00:00:00");
             const end = new Date(dateRange.end + "T23:59:59");
-
+            
             // Check if dates are valid
             if (
               isNaN(complaintDate.getTime()) ||
@@ -2410,7 +2424,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ) {
               return false;
             }
-
+            
             return complaintDate >= start && complaintDate <= end;
           } catch (error) {
             console.error("Error parsing date:", c.dateSubmitted, error);
@@ -2455,7 +2469,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       filteredComplaints.filter((c) => c.responseTime).length > 0
         ? totalResponseTime /
           filteredComplaints.filter((c) => c.responseTime).length
-        : 0;
+      : 0;
 
     const totalResolutionTime = filteredComplaints
       .filter((c) => c.resolutionTime)
@@ -2464,7 +2478,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       filteredComplaints.filter((c) => c.resolutionTime).length > 0
         ? totalResolutionTime /
           filteredComplaints.filter((c) => c.resolutionTime).length
-        : 0;
+      : 0;
 
     // Group by date for time series
     const complaintsOverTime = filteredComplaints.reduce((acc, c) => {
@@ -2496,13 +2510,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const providerPerformance = Object.entries(providerStats).map(
       ([providerId, stats]) => {
         const provider = users.find((u) => u.id === providerId);
-        return {
-          providerId,
+      return {
+        providerId,
           providerName: provider?.name || "Unknown",
-          resolved: stats.resolved,
+        resolved: stats.resolved,
           avgResolutionTime:
             stats.count > 0 ? stats.totalTime / stats.count : 0,
-        };
+      };
       }
     );
 
@@ -2553,6 +2567,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!currentUser,
         updatePassword,
         updateUser,
+        updateUserById,
         complaints: complaints,
         addComplaint,
         updateComplaint,
