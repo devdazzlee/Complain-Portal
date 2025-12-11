@@ -465,9 +465,10 @@ export default function DashboardDetailPage() {
                       )}
                     </div>
                     <button
-                      onClick={() =>
-                        router.push(`/provider/complaints/${complaint.id}`)
-                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/provider/complaints/${complaint.id}`);
+                      }}
                       className="w-full text-white rounded-lg flex items-center justify-center gap-2 transition-colors"
                       style={{
                         backgroundColor: "#2AB3EE",
