@@ -344,13 +344,11 @@ export default function DashboardDetailPage() {
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = "#2A2B30";
-                      e.currentTarget.style.borderColor = "#2AB3EE";
                       e.currentTarget.style.transform = "translateY(-2px)";
                       e.currentTarget.style.boxShadow = "0 4px 12px rgba(42, 179, 238, 0.2)";
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = "#1F2022";
-                      e.currentTarget.style.borderColor = "#E6E6E6";
                       e.currentTarget.style.transform = "translateY(0)";
                       e.currentTarget.style.boxShadow = "none";
                     }}

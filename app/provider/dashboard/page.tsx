@@ -261,13 +261,11 @@ export default function ProviderDashboard() {
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.backgroundColor = '#2A2B30';
-                  e.currentTarget.style.borderColor = '#2AB3EE';
                   e.currentTarget.style.transform = 'translateY(-2px)';
                   e.currentTarget.style.boxShadow = '0 4px 12px rgba(42, 179, 238, 0.2)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = '#1F2022';
-                  e.currentTarget.style.borderColor = '#E6E6E6';
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = 'none';
                 }}
@@ -337,14 +335,28 @@ export default function ProviderDashboard() {
                 </tr>
               ) : (
                 paginatedComplaints.map((complaint) => (
-                  <tr key={complaint.id} style={{ borderBottomColor: '#E6E6E6', borderWidth: '1px' }} className="border-b transition-colors" onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1F2022'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                  <tr 
+                    key={complaint.id} 
+                    onClick={() => router.push(`/provider/complaints/${complaint.id}`)}
+                    style={{ borderBottomColor: '#E6E6E6', borderWidth: '1px' }} 
+                    className="border-b transition-colors cursor-pointer" 
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#2A2B30';
+                    }} 
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
                     <td className="py-5 px-4 font-semibold" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>{complaint.complaintId}</td>
                     <td className="py-5 px-4" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>{complaint.caretaker}</td>
                     <td className="py-5 px-4">{getStatusBadge(complaint.status)}</td>
                     <td className="py-5 px-4" style={{ color: '#E6E6E6', fontSize: '1rem' }}>{complaint.lastUpdate}</td>
                     <td className="py-5 px-4">
                       <button
-                        onClick={() => router.push(`/provider/complaints/${complaint.id}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/provider/complaints/${complaint.id}`);
+                        }}
                         className="text-white rounded-lg flex items-center gap-2 transition-colors"
                         style={{ 
                           backgroundColor: '#2A2B30',
