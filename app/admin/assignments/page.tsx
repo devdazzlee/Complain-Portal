@@ -146,7 +146,7 @@ export default function AssignmentWorkflowPage() {
                   </div>
                   {filteredComplaints.length > 0 ? (
                     filteredComplaints.map(complaint => (
-                      <SelectItem key={complaint.id} value={complaint.id} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                      <SelectItem key={complaint.id} value={complaint.id} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30] focus:outline-none focus:ring-0 focus:border-0 hover:outline-none hover:ring-0 hover:border-0">
                         {complaint.complaintId} - {complaint.typeOfProblem}
                       </SelectItem>
                     ))
@@ -207,7 +207,7 @@ export default function AssignmentWorkflowPage() {
                   </div>
                   {filteredProviders.length > 0 ? (
                     filteredProviders.map(provider => (
-                      <SelectItem key={provider.id} value={provider.id} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                      <SelectItem key={provider.id} value={provider.id} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30] focus:outline-none focus:ring-0 focus:border-0 hover:outline-none hover:ring-0 hover:border-0">
                         {provider.name} ({provider.role})
                       </SelectItem>
                     ))

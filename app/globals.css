@@ -535,3 +535,14 @@ body {
 .animate-progress {
   animation: progress 1.5s ease-in-out infinite;
 }
+
+/* Remove blue borders from Radix UI SelectItem */
+[data-slot="select-item"]:focus,
+[data-slot="select-item"]:focus-visible,
+[data-slot="select-item"]:hover,
+[data-slot="select-item"][data-highlighted] {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  ring: 0 !important;
+}

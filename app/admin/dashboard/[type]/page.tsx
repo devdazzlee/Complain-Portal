@@ -116,30 +116,23 @@ export default function DashboardDetailPage() {
   const getStatusBadge = (status: ComplaintStatus) => {
     if (status === "In Progress") {
       return (
-        <span className="inline-flex items-center gap-2">
-          <span
-            className="w-3 h-3 rounded-full"
-            style={{ backgroundColor: "#2AB3EE" }}
-          ></span>
-          <span
-            className="px-3 py-1.5 text-white rounded-full font-semibold"
-            style={{ backgroundColor: "#2AB3EE", fontSize: "1rem" }}
-          >
-            In Progress
-          </span>
+        <span
+          style={{ color: "#2AB3EE", fontSize: "1.125rem", fontWeight: 600 }}
+        >
+          In Progress
         </span>
       );
     }
     if (status === "Refused") {
       return (
-        <span className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5">
           <span
-            className="w-3 h-3 rounded-full"
+            className="w-2 h-2 rounded-full"
             style={{ backgroundColor: "#FF3F3F" }}
           ></span>
           <span
-            className="px-3 py-1.5 text-white rounded-full font-semibold"
-            style={{ backgroundColor: "#FF3F3F", fontSize: "1rem" }}
+            className="px-2 py-0.5 text-white rounded-full font-semibold whitespace-nowrap"
+            style={{ backgroundColor: "#FF3F3F", fontSize: "0.875rem" }}
           >
             Refused
           </span>
@@ -148,13 +141,14 @@ export default function DashboardDetailPage() {
     }
     if (status === "Closed") {
       return (
-        <span className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5">
           <span
-            className="w-3 h-3 rounded-full"
+            className="w-2 h-2 rounded-full"
             style={{ backgroundColor: "#009200" }}
           ></span>
           <span
-            style={{ color: "#009200", fontSize: "1.125rem", fontWeight: 600 }}
+            className="px-2 py-0.5 text-white rounded-full font-semibold whitespace-nowrap"
+            style={{ backgroundColor: "#009200", fontSize: "0.875rem" }}
           >
             {status}
           </span>
@@ -162,16 +156,8 @@ export default function DashboardDetailPage() {
       );
     }
     return (
-      <span className="inline-flex items-center gap-2">
-        <span
-          className="w-3 h-3 rounded-full"
-          style={{ backgroundColor: "#2AB3EE" }}
-        ></span>
-        <span
-          style={{ color: "#2AB3EE", fontSize: "1.125rem", fontWeight: 600 }}
-        >
-          {status}
-        </span>
+      <span style={{ color: "#2AB3EE", fontSize: "1.125rem", fontWeight: 600 }}>
+        {status}
       </span>
     );
   };
