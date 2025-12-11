@@ -45,15 +45,22 @@ export default function NewComplaintPage() {
   const [uploading, setUploading] = useState(false);
   const [templateSearch, setTemplateSearch] = useState('');
   const [caretakerSearch, setCaretakerSearch] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomTemplate, setShowCustomTemplate] = useState(false);
   const [customTemplateName, setCustomTemplateName] = useState('');
   const voiceRecognitionRef = useRef<VoiceRecognition | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Customer is now a free text field since customer role was removed
+  // Customer list
+  const customers = ['John Doe', 'Jane Smith', 'Robert Johnson', 'Mary Williams', 'David Brown', 'Sarah Davis', 'Michael Wilson', 'Emily Moore', 'James Taylor', 'Patricia Anderson'];
 
   // Caretaker list
   const caretakers = ['Lisa Adams', 'John Smith', 'Sarah Reed', 'Michael Brown', 'Emily Johnson', 'Unknown'];
+
+  // Filter customers based on search
+  const filteredCustomers = customers.filter(customer =>
+    customer.toLowerCase().includes(customerSearch.toLowerCase())
+  );
 
   // Filter caretakers based on search
   const filteredCaretakers = caretakers.filter(caretaker =>
@@ -299,7 +306,7 @@ export default function NewComplaintPage() {
 
             {/* Template Search + Select combined inside dropdown */}
             <Select value={formData.templateId} onValueChange={handleTemplateSelectChange}>
-                <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
+                <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
                 <SelectValue placeholder="Search or select a template..." />
                 </SelectTrigger>
               <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
@@ -368,16 +375,14 @@ export default function NewComplaintPage() {
                       value={t.id} 
                       className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
                       style={{
-                        border: '2px solid transparent',
+                        border: 'none',
                         padding: '10px 12px',
                         transition: 'all 0.2s'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = '#2AB3EE';
                         e.currentTarget.style.backgroundColor = '#2A2B30';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = 'transparent';
                         e.currentTarget.style.backgroundColor = 'transparent';
                       }}
                     >
@@ -401,21 +406,83 @@ export default function NewComplaintPage() {
           {/* Customer */}
           <div>
             <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Customer Name</label>
+            <Select value={formData.customer || undefined} onValueChange={(value) => setFormData({ ...formData, customer: value })}>
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+                <SelectValue placeholder="Search or select customer..." />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
+                <div
+                  className="px-3 py-2 sticky top-0 z-10"
+                  style={{ backgroundColor: '#1F2022', borderBottom: '1px solid #2A2B30' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="relative">
             <input
               type="text"
-              value={formData.customer}
-              onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
-              placeholder="Enter customer name..."
-              className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0 outline-none transition"
-            />
-            <p className="mt-2" style={{ color: '#E6E6E6', opacity: 0.7, fontSize: '1rem' }}>Enter the name of the customer for this complaint</p>
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      placeholder="Search customers..."
+                      className="w-full rounded-lg outline-none transition pr-10"
+                      style={{ 
+                        backgroundColor: '#0f1012', 
+                        borderColor: '#2A2B30', 
+                        borderWidth: '2px', 
+                        borderStyle: 'solid', 
+                        color: '#E6E6E6',
+                        fontSize: '0.95rem',
+                        padding: '10px 12px',
+                        minHeight: '44px'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
+                      onBlur={(e) => e.target.style.borderColor = '#2A2B30'}
+                    />
+                    <svg 
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                      style={{ color: '#E6E6E6', opacity: 0.7 }}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                </div>
+                {filteredCustomers.length > 0 ? (
+                  filteredCustomers.map((customer) => (
+                    <SelectItem 
+                      key={customer} 
+                      value={customer} 
+                      className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
+                      style={{
+                        border: 'none',
+                        padding: '10px 12px',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#2A2B30';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      {customer}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-customers" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                    No customers found matching "{customerSearch}"
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            <p className="mt-2" style={{ color: '#E6E6E6', opacity: 0.7, fontSize: '1rem' }}>Search and select the customer for this complaint</p>
           </div>
 
           {/* Caretaker */}
           <div>
             <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Caretaker</label>
             <Select value={formData.caretaker || undefined} onValueChange={(value) => setFormData({ ...formData, caretaker: value })}>
-              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
                 <SelectValue placeholder="Search or select caretaker..." />
               </SelectTrigger>
               <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
@@ -462,16 +529,14 @@ export default function NewComplaintPage() {
                       value={caretaker} 
                       className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
                       style={{
-                        border: '2px solid transparent',
+                        border: 'none',
                         padding: '10px 12px',
                         transition: 'all 0.2s'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = '#2AB3EE';
                         e.currentTarget.style.backgroundColor = '#2A2B30';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = 'transparent';
                         e.currentTarget.style.backgroundColor = 'transparent';
                       }}
                     >

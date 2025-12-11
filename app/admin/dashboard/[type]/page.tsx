@@ -258,10 +258,10 @@ export default function DashboardDetailPage() {
             style={{ backgroundColor: getCardColor(type) }}
           >
             <div>
-              <p className="text-[#E6E6E6] text-2xl md:text-3xl lg:text-4xl mb-4 font-semibold">
+              <p className="text-[#E6E6E6] text-base! md:text-lg! lg:text-xl! mb-4 font-semibold">
                 Total Complaints
               </p>
-              <p className="font-bold text-white text-6xl md:text-8xl lg:text-9xl leading-none">
+              <p className="font-bold text-white text-2xl! md:text-3xl! lg:text-4xl! leading-none">
                 {filteredComplaints.length}
               </p>
             </div>
@@ -336,7 +336,9 @@ export default function DashboardDetailPage() {
                 {paginatedComplaints.map((complaint) => (
                   <div
                     key={complaint.id}
-                    onClick={() => router.push(`/admin/complaints/${complaint.id}`)}
+                    onClick={() =>
+                      router.push(`/admin/complaints/${complaint.id}`)
+                    }
                     className="rounded-lg p-5 cursor-pointer transition-all duration-200"
                     style={{
                       backgroundColor: "#1F2022",
@@ -345,7 +347,8 @@ export default function DashboardDetailPage() {
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = "#2A2B30";
                       e.currentTarget.style.transform = "translateY(-2px)";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(42, 179, 238, 0.2)";
+                      e.currentTarget.style.boxShadow =
+                        "0 4px 12px rgba(42, 179, 238, 0.2)";
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = "#1F2022";
@@ -647,9 +650,7 @@ export default function DashboardDetailPage() {
                         <td className="py-5 px-4">
                           <button
                             onClick={() =>
-                              router.push(
-                                `/admin/complaints/${complaint.id}`
-                              )
+                              router.push(`/admin/complaints/${complaint.id}`)
                             }
                             className="text-white rounded-lg flex items-center gap-2 transition-colors"
                             style={{

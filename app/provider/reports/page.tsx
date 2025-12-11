@@ -103,7 +103,7 @@ export default function ReportsPage() {
       case "Urgent":
         return "#FF3F3F";
       case "Medium":
-        return "#FF8800";
+        return "#2AB3EE";
       case "Low":
         return "#2AB3EE";
       default:
