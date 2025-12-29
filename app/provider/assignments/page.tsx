@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Select,
   SelectContent,
@@ -9,21 +9,95 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import Layout from '../../components/Layout';
-import { useApp } from '../../context/AppContext';
+import { assignmentService } from '../../../lib/services';
 import { Complaint } from '../../types';
 import PriorityBadge from '../../components/PriorityBadge';
 import Loader from '../../components/Loader';
 import Toast from '../../components/Toast';
 
 export default function AssignmentWorkflowPage() {
-  const { complaints, users, assignComplaint, currentUser } = useApp();
+  const [unassignedComplaints, setUnassignedComplaints] = useState<Complaint[]>([]);
+  const [providers, setProviders] = useState<Array<{ id: number | string; name: string; email?: string; role?: string }>>([]);
   const [selectedComplaint, setSelectedComplaint] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  const unassignedComplaints = complaints.filter(c => !c.assignedTo && c.status === 'Open');
-  const providers = users.filter(u => u.role === 'provider' || u.role === 'admin');
+  // Map API complaint to Complaint interface
+  const mapComplaintFromAPI = useCallback((apiComplaint: Record<string, unknown>): Complaint => {
+    const history = apiComplaint.history as Array<Record<string, unknown>> | undefined;
+    const latestHistory = history && history.length > 0 ? history[history.length - 1] : null;
+    const status = latestHistory?.status as Record<string, unknown> | undefined;
+    const type = apiComplaint.type as Record<string, unknown> | undefined;
+    const priority = apiComplaint.priority as Record<string, unknown> | undefined;
+    const files = apiComplaint.files as Array<Record<string, unknown>> | undefined;
+
+    return {
+      id: String(apiComplaint.id || ''),
+      complaintId: `CMP-${apiComplaint.id || ''}`,
+      caretaker: String(apiComplaint['Complainant'] || apiComplaint.complainant || ''),
+      typeOfProblem: String(type?.name || type?.code || ''),
+      description: String(apiComplaint.description || ''),
+      status: String(status?.label || status?.code || 'Open'),
+      priority: String(priority?.label || priority?.code || 'Low') as 'Low' | 'Medium' | 'High' | 'Urgent',
+      dateSubmitted: latestHistory ? new Date(String(latestHistory.created_at || '')).toLocaleDateString() : new Date().toLocaleDateString(),
+      assignedTo: String(latestHistory?.['Case Handle By'] || ''),
+      attachments: files?.map((f: Record<string, unknown>) => ({
+        id: String(f.id || ''),
+        name: String(f.file_name || f.path || ''),
+        url: String(f.url || ''),
+        type: String(f.type || ''),
+        size: 0,
+        uploadedBy: '',
+        uploadedAt: new Date().toISOString(),
+      })) || [],
+      timeline: history?.map((h: Record<string, unknown>, index: number) => ({
+        id: String(index),
+        status: String(h.status?.label || h.status?.code || ''),
+        handler: String(h['Case Handle By'] || ''),
+        remarks: String(h['Handler Remarks'] || ''),
+        date: new Date().toISOString(),
+      })) || [],
+    };
+  }, []);
+
+  // Fetch unassigned complaints and providers
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [unassignedData, providersData] = await Promise.all([
+          assignmentService.getUnassignedComplaints(),
+          assignmentService.getProviders(),
+        ]);
+
+        // Map unassigned complaints
+        const mappedComplaints = unassignedData.map(mapComplaintFromAPI);
+        setUnassignedComplaints(mappedComplaints);
+
+        // Map providers
+        const mappedProviders = providersData.map((p: Record<string, unknown>) => ({
+          id: Number(p.id || 0),
+          name: String(p.first_name || p.name || p.username || '') + 
+                (p.last_name ? ` ${String(p.last_name)}` : ''),
+          email: String(p.email || ''),
+          role: String(p.role?.name || p.role || 'provider'),
+        }));
+        setProviders(mappedProviders);
+      } catch (error) {
+        console.error('Error fetching assignment data:', error);
+        setToast({ 
+          message: error instanceof Error ? error.message : 'Failed to load assignment data', 
+          type: 'error' 
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [mapComplaintFromAPI]);
 
   const handleAssign = async () => {
     if (!selectedComplaint || !selectedProvider) {
@@ -31,17 +105,47 @@ export default function AssignmentWorkflowPage() {
       return;
     }
 
-    setLoading(true);
-    const provider = users.find(u => u.id === selectedProvider);
-    if (provider) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      assignComplaint(selectedComplaint, provider.id, provider.name);
+    try {
+      setAssigning(true);
+      const complaintId = parseInt(selectedComplaint.replace('CMP-', ''));
+      const providerId = typeof selectedProvider === 'string' ? parseInt(selectedProvider) : selectedProvider;
+      const provider = providers.find(p => p.id === providerId);
+
+      if (!provider) {
+        setToast({ message: 'Provider not found', type: 'error' });
+        return;
+      }
+
+      await assignmentService.assignComplaint(complaintId, providerId, `Complaint assigned to ${provider.name}`);
+
+      // Refresh unassigned complaints
+      const unassignedData = await assignmentService.getUnassignedComplaints();
+      const mappedComplaints = unassignedData.map(mapComplaintFromAPI);
+      setUnassignedComplaints(mappedComplaints);
+
       setToast({ message: `Complaint assigned to ${provider.name} successfully`, type: 'success' });
       setSelectedComplaint(null);
       setSelectedProvider('');
+    } catch (error) {
+      console.error('Error assigning complaint:', error);
+      setToast({ 
+        message: error instanceof Error ? error.message : 'Failed to assign complaint', 
+        type: 'error' 
+      });
+    } finally {
+      setAssigning(false);
     }
-    setLoading(false);
   };
+
+  if (loading) {
+    return (
+      <Layout role="provider">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader />
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout role="provider">
@@ -87,8 +191,8 @@ export default function AssignmentWorkflowPage() {
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
                   {providers.map(provider => (
-                    <SelectItem key={provider.id} value={provider.id} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
-                      {provider.name} ({provider.role})
+                    <SelectItem key={String(provider.id)} value={String(provider.id)} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                      {provider.name} ({provider.role || 'provider'})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -97,16 +201,16 @@ export default function AssignmentWorkflowPage() {
 
             <button
               onClick={handleAssign}
-              disabled={loading || !selectedComplaint || !selectedProvider}
+              disabled={assigning || !selectedComplaint || !selectedProvider}
               className="w-full px-4 md:px-6 py-3 rounded-lg font-semibold text-base md:text-lg flex items-center justify-center gap-2"
               style={{
-                backgroundColor: loading || !selectedComplaint || !selectedProvider ? '#2A2B30' : '#2AB3EE',
+                backgroundColor: assigning || !selectedComplaint || !selectedProvider ? '#2A2B30' : '#2AB3EE',
                 color: '#E6E6E6',
                 minHeight: '52px',
-                opacity: loading || !selectedComplaint || !selectedProvider ? 0.5 : 1,
+                opacity: assigning || !selectedComplaint || !selectedProvider ? 0.5 : 1,
               }}
             >
-              {loading ? (
+              {assigning ? (
                 <>
                   <Loader size="sm" color="#FFFFFF" />
                   Assigning...

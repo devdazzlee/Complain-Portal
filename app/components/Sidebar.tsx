@@ -81,6 +81,8 @@ export default function Sidebar({ role }: SidebarProps) {
 
   const adminMenuItems = [
     { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/admin/profile", label: "My Profile", icon: User },
+    { href: "/admin/settings", label: "Settings", icon: Settings },
     { href: "/admin/complaints", label: "All Complaints", icon: FileText },
     {
       href: "/admin/assignments",
@@ -91,7 +93,6 @@ export default function Sidebar({ role }: SidebarProps) {
     { href: "/admin/notifications", label: "Notifications", icon: Bell },
     { href: "/admin/search", label: "Advanced Search", icon: Search },
     { href: "/admin/reports", label: "Reports & Analytics", icon: BarChart3 },
-    { href: "/admin/settings", label: "Settings", icon: Settings },
   ];
 
   const menuItems = role === "provider" ? providerMenuItems : adminMenuItems;

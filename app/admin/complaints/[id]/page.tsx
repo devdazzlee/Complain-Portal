@@ -1,25 +1,171 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '../../../components/Layout';
-import { useApp } from '../../../context/AppContext';
 import { generatePDF } from '../../../utils/pdfExport';
 import Loader from '../../../components/Loader';
 import Toast from '../../../components/Toast';
 import CommentsSection from '../../../components/CommentsSection';
 import FileGallery from '../../../components/FileGallery';
 import PriorityBadge from '../../../components/PriorityBadge';
+import { complaintService } from '../../../../lib/services';
+import { Complaint, ComplaintStatus, ProblemType, Priority, FileAttachment, ComplaintTimelineItem } from '../../../types';
+import { useDashboardStore } from '../../../../lib/stores/dashboardStore';
+
+// Helper function to map complaint from API response (same as dashboard)
+const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint => {
+  // Get the latest status from history array
+  const history = (item.history as Array<Record<string, unknown>>) || [];
+  const latestStatus = history.length > 0 
+    ? (history[history.length - 1].status as Record<string, unknown>)
+    : null;
+  const statusLabel = latestStatus?.label as string || "Open";
+  
+  // Get type from type object
+  const typeObj = item.type as Record<string, unknown> || {};
+  const typeName = (typeObj.name as string) || (typeObj.code as string) || "Other";
+  
+  // Get priority from priority object
+  const priorityObj = item.priority as Record<string, unknown> || {};
+  const priorityLabel = (priorityObj.label as string) || "Medium";
+  
+  // Get files/attachments
+  const files = (item.files as Array<Record<string, unknown>>) || [];
+  const attachments: FileAttachment[] = files.map((file: Record<string, unknown>) => ({
+    id: String(file.id || ''),
+    name: (file.file_name as string) || '',
+    url: (file.url as string) || '',
+    type: (file.type as string) || 'image',
+    size: 0,
+    uploadedBy: '',
+    uploadedAt: new Date().toISOString(),
+  }));
+  
+  // Map timeline from history
+  const timeline: ComplaintTimelineItem[] = history.map((hist: Record<string, unknown>) => {
+    const statusObj = hist.status as Record<string, unknown> || {};
+    const statusLabel = statusObj.label as string || 'Unknown';
+    const statusCode = statusObj.code as string || '';
+    return {
+      status: statusLabel,
+      date: new Date().toISOString(),
+      description: (hist["Handler Remarks"] as string) || '',
+      isCompleted: statusCode === 'closed',
+      isRefused: statusCode === 'refused',
+      userName: (hist["Case Handle By"] as string) || undefined,
+    };
+  });
+  
+  // Map status
+  const mapStatus = (status: string): ComplaintStatus => {
+    const statusStr = status?.toLowerCase() || '';
+    if (statusStr.includes('open')) return 'Open';
+    if (statusStr.includes('progress') || statusStr.includes('pending')) return 'In Progress';
+    if (statusStr.includes('closed') || statusStr.includes('resolved')) return 'Closed';
+    if (statusStr.includes('refused') || statusStr.includes('rejected')) return 'Refused';
+    return 'Open';
+  };
+  
+  return {
+    id: String(item.id || Date.now()),
+    complaintId: `CMP-${item.id}`,
+    caretaker: String(item.Complainant || item.caretaker_name || item.client_name || "Unknown"),
+    typeOfProblem: (typeName === "Late Arrival" ? "Late arrival" : typeName) as ProblemType,
+    description: String(item.description || ""),
+    dateSubmitted: new Date().toLocaleDateString(),
+    lastUpdate: new Date().toLocaleDateString(),
+    status: mapStatus(statusLabel),
+    priority: priorityLabel as Priority,
+    category: undefined,
+    tags: [],
+    attachments: attachments,
+    timeline: timeline,
+  };
+};
 
 export default function AdminComplaintDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { getComplaintById, deleteComplaint } = useApp();
-  const complaint = getComplaintById(params.id as string);
+  const { complaints: storeComplaints } = useDashboardStore();
+  const [complaint, setComplaint] = useState<Complaint | null>(null);
+  const [loading, setLoading] = useState(true);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  useEffect(() => {
+    const fetchComplaint = async () => {
+      try {
+        setLoading(true);
+        const complaintId = params.id as string;
+        
+        // First try to find in Zustand store
+        // The complaintId from URL could be numeric string (e.g., "6") or "CMP-6"
+        const numericId = complaintId.replace('CMP-', '');
+        const foundInStore = storeComplaints.find(c => {
+          const cNumericId = c.id.replace('CMP-', '');
+          return c.id === complaintId || 
+                 c.complaintId === complaintId || 
+                 c.id === numericId ||
+                 c.complaintId === `CMP-${numericId}` ||
+                 cNumericId === numericId ||
+                 cNumericId === complaintId;
+        });
+        
+        if (foundInStore) {
+          setComplaint(foundInStore);
+          setLoading(false);
+          return;
+        }
+        
+        // If not in store, fetch from API
+        const response = await complaintService.getById(complaintId);
+        if (response.complaint) {
+          const mappedComplaint = mapComplaintFromResponse(response.complaint);
+          setComplaint(mappedComplaint);
+        }
+      } catch (error) {
+        console.error('Error fetching complaint:', error);
+        setToast({ message: 'Failed to load complaint details', type: 'error' });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchComplaint();
+  }, [params.id, storeComplaints]);
+
+  const handleDelete = async () => {
+    try {
+      setDeleting(true);
+      const complaintId = typeof complaint?.id === 'string' ? parseInt(complaint.id.replace('CMP-', '')) : complaint?.id;
+      if (complaintId) {
+        await complaintService.delete(complaintId);
+        setToast({ message: 'Complaint deleted successfully', type: 'success' });
+        setTimeout(() => {
+          router.push('/admin/dashboard');
+        }, 1500);
+      }
+    } catch (error) {
+      console.error('Error deleting complaint:', error);
+      setToast({ message: 'Failed to delete complaint', type: 'error' });
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout role="admin">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader size="lg" />
+        </div>
+      </Layout>
+    );
+  }
 
   if (!complaint) {
     return (

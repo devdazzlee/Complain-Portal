@@ -7,7 +7,7 @@ import Loader from '../../components/Loader';
 import Toast from '../../components/Toast';
 import { authService } from '../../../lib/auth';
 
-export default function ProfilePage() {
+export default function AdminProfilePage() {
   const { currentUser, updateUser } = useApp();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -108,7 +108,7 @@ export default function ProfilePage() {
 
   if (fetching) {
     return (
-      <Layout role="provider">
+      <Layout role="admin">
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader size="lg" />
         </div>
@@ -117,7 +117,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <Layout role="provider">
+    <Layout role="admin">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-bold mb-8 text-[#E6E6E6]">My Profile</h1>
 
@@ -193,7 +193,6 @@ export default function ProfilePage() {
                 className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg outline-none block focus:border-[#2AB3EE] transition-colors placeholder:opacity-50"
               />
             </div>
-
 
             {/* Date of Birth */}
             <div className="w-full">
@@ -320,3 +319,4 @@ export default function ProfilePage() {
     </Layout>
   );
 }
+

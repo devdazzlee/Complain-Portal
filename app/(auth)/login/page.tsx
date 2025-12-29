@@ -9,7 +9,7 @@ import Loader from "../../components/Loader";
 import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -22,18 +22,47 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      const success = await login(username, password);
 
-    const success = login(email, password);
-
-    if (success) {
-      router.push("/customer/dashboard");
-    } else {
-      setError("Invalid email or password");
+      if (success) {
+        // Get user role from localStorage to determine redirect
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser) {
+          try {
+            const user = JSON.parse(savedUser);
+            // Redirect based on role: admin -> /admin/dashboard, provider -> /provider/dashboard
+            if (user.role === 'admin') {
+              router.push("/admin/dashboard");
+            } else {
+              router.push("/provider/dashboard");
+            }
+          } catch (e) {
+            // Fallback to provider dashboard if parsing fails
+            router.push("/provider/dashboard");
+          }
+        } else {
+          // Fallback to provider dashboard
+          router.push("/provider/dashboard");
+        }
+      } else {
+        setError("Invalid username or password");
+      }
+    } catch (err: any) {
+      console.error('Login error details:', err);
+      // Show more detailed error message
+      if (err?.response?.status === 404) {
+        setError("API endpoint not found. Please check the backend URL configuration.");
+      } else if (err?.response?.data?.message) {
+        setError(err.response.data.message);
+      } else if (err?.message) {
+        setError(err.message);
+      } else {
+        setError("Login failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -76,7 +105,7 @@ export default function LoginPage() {
 
           <div>
             <label
-              htmlFor="email"
+              htmlFor="username"
               className="block mb-3"
               style={{
                 color: "#E6E6E6",
@@ -84,16 +113,16 @@ export default function LoginPage() {
                 fontWeight: 500,
               }}
             >
-              Email Address
+              Username
             </label>
             <input
-              id="email"
-              type="email"
-              name="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
+              id="username"
+              type="text"
+              name="username"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter your username"
               required
               className="w-full rounded-lg outline-none transition placeholder:opacity-50"
               style={{
@@ -193,22 +222,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        <div
-          className="mt-6 flex items-center justify-between"
-          style={{ fontSize: "1.125rem" }}
-        >
-          <span style={{ color: "#E6E6E6" }}>Don't have account?</span>
-          <Link
-            href="/signup"
-            className="font-semibold transition-colors"
-            style={{ color: "#2AB3EE", fontSize: "1.125rem" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#1F8FD0")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#2AB3EE")}
-          >
-            Sign Up
-          </Link>
-        </div>
 
         <div className="mt-4 text-right">
           <Link

@@ -21,16 +21,17 @@ import {
   ComplaintTemplate,
   ComplaintStatus,
 } from "../types";
+import { authService } from "../../lib/auth";
 
 interface AppContextType {
   // Auth
   currentUser: User | null;
   users: User[];
-  login: (email: string, password: string) => boolean;
+  login: (username: string, password: string) => Promise<boolean>;
   signup: (email: string, password: string, name: string) => boolean;
   logout: () => void;
   isAuthenticated: boolean;
-  updatePassword: (oldPassword: string, newPassword: string) => boolean;
+  updatePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
   updateUser: (updates: Partial<User>) => void;
   updateUserById: (userId: string, updates: Partial<User>) => void;
 
@@ -1847,11 +1848,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [templates, setTemplates] =
     useState<ComplaintTemplate[]>(initialTemplates);
 
-  // Load user from localStorage on mount
+  // Load user from localStorage on mount and restore session if token exists
   useEffect(() => {
     const savedUser = localStorage.getItem("currentUser");
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
+    const token = localStorage.getItem("auth_token");
+    
+    if (savedUser && token && authService.isAuthenticated()) {
+      try {
+        const user = JSON.parse(savedUser);
+        setCurrentUser(user);
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        localStorage.removeItem("currentUser");
+      }
+    } else if (!authService.isAuthenticated()) {
+      // Clear user if token is invalid/expired
+      setCurrentUser(null);
+      localStorage.removeItem("currentUser");
     }
   }, []);
 
@@ -1864,15 +1877,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [currentUser]);
 
-  const login = (email: string, password: string): boolean => {
-    const user = users.find(
-      (u) => u.email === email && u.password === password
-    );
-    if (user) {
+  const login = async (username: string, password: string): Promise<boolean> => {
+    try {
+      const response = await authService.login(username, password);
+      
+      // Check if login was successful
+      if (!response.result || !response.payload) {
+        console.error('Login failed:', response.message);
+        return false;
+      }
+
+      const payload = response.payload;
+
+      // Store token from payload
+      if (payload.token) {
+        localStorage.setItem('auth_token', payload.token);
+      }
+
+      // Map API response to User type
+      const user: User = {
+        id: payload.id.toString(),
+        email: payload.email || username,
+        name: payload.first_name + (payload.last_name ? ` ${payload.last_name}` : '') || payload.username || username,
+        role: payload.role === 'admin' ? 'admin' : 'provider', // Only admin or provider
+      };
+
       setCurrentUser(user);
+      localStorage.setItem('currentUser', JSON.stringify(user));
       return true;
+    } catch (error: any) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   const signup = (email: string, password: string, name: string): boolean => {
@@ -1892,20 +1928,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    authService.logout();
     setCurrentUser(null);
   };
 
-  const updatePassword = (
+  const updatePassword = async (
     oldPassword: string,
     newPassword: string
-  ): boolean => {
-    if (!currentUser || currentUser.password !== oldPassword) {
+  ): Promise<boolean> => {
+    try {
+      await authService.updatePassword(oldPassword, newPassword);
+      return true;
+    } catch (error: any) {
+      console.error('Update password error:', error);
       return false;
     }
-    const updatedUser = { ...currentUser, password: newPassword };
-    setCurrentUser(updatedUser);
-    setUsers(users.map((u) => (u.id === currentUser.id ? updatedUser : u)));
-    return true;
   };
 
   const updateUser = (updates: Partial<User>) => {
@@ -2564,7 +2601,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         login,
         signup,
         logout,
-        isAuthenticated: !!currentUser,
+        isAuthenticated: !!currentUser && authService.isAuthenticated(),
         updatePassword,
         updateUser,
         updateUserById,

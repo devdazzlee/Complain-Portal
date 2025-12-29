@@ -3,14 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
-import { useApp } from '../../context/AppContext';
-import { Complaint, ComplaintStatus, Priority, ComplaintCategory } from '../../types';
+import { complaintService } from '../../../lib/services';
+import { Complaint, ComplaintStatus, Priority, ComplaintCategory, FileAttachment, ComplaintTimelineItem, ProblemType } from '../../types';
 import PriorityBadge from '../../components/PriorityBadge';
 import { exportToCSV, exportToExcel } from '../../utils/export';
+import Loader from '../../components/Loader';
 
 export default function AdvancedSearchPage() {
   const router = useRouter();
-  const { complaints, filterComplaints, currentUser } = useApp();
   const [filters, setFilters] = useState({
     searchQuery: '',
     status: [] as ComplaintStatus[],
@@ -26,42 +26,229 @@ export default function AdvancedSearchPage() {
   const [results, setResults] = useState<Complaint[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [statuses, setStatuses] = useState<Array<Record<string, unknown>>>([]);
+  const [types, setTypes] = useState<Array<Record<string, unknown>>>([]);
+  const [priorities, setPriorities] = useState<Array<Record<string, unknown>>>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  // Auto-load all complaints on page load for demonstration
+  // Fetch statuses, types, and priorities on mount
   useEffect(() => {
-    if (complaints.length > 0) {
-      setResults(complaints); // Show all complaints initially for demonstration
-    }
-  }, [complaints]);
+    const fetchMetadata = async () => {
+      try {
+        const [statusesResponse, typesResponse, prioritiesResponse] = await Promise.all([
+          complaintService.getStatuses().catch(() => ({ data: [] })),
+          complaintService.getTypes().catch(() => ({ data: [] })),
+          complaintService.getPriorities().catch(() => ({ data: [] })),
+        ]);
 
-  const handleSearch = () => {
-    // If no filters are applied, show all complaints
-    const hasFilters = filters.searchQuery.trim() || 
-                      filters.status.length > 0 || 
-                      filters.priority.length > 0 || 
-                      filters.category.length > 0 || 
-                      filters.assignedTo || 
-                      (filters.dateRange.start && filters.dateRange.end) ||
-                      filters.tags.length > 0;
+        const apiStatuses = statusesResponse?.payload || statusesResponse?.data || statusesResponse;
+        setStatuses(Array.isArray(apiStatuses) ? apiStatuses : []);
+
+        const apiTypes = typesResponse?.payload || typesResponse?.data || typesResponse;
+        setTypes(Array.isArray(apiTypes) ? apiTypes : []);
+
+        const apiPriorities = prioritiesResponse?.payload || prioritiesResponse?.data || prioritiesResponse;
+        setPriorities(Array.isArray(apiPriorities) ? apiPriorities : []);
+      } catch (err) {
+        console.error('Error fetching metadata:', err);
+      }
+    };
+
+    fetchMetadata();
+  }, []);
+
+  // Map status label to ID
+  const getStatusId = (statusLabel: ComplaintStatus): number | undefined => {
+    const statusMap: Record<string, number> = {
+      'Open': 1,
+      'In Progress': 2,
+      'On Hold': 3,
+      'Refused': 4,
+      'Closed': 5,
+    };
+    return statusMap[statusLabel];
+  };
+
+  // Map priority label to ID
+  const getPriorityId = (priorityLabel: Priority): number | undefined => {
+    const priority = priorities.find((p: any) => 
+      p.label?.toLowerCase() === priorityLabel.toLowerCase() || 
+      p.code?.toLowerCase() === priorityLabel.toLowerCase()
+    );
+    return priority?.id as number | undefined;
+  };
+
+  // Map type/category label to ID
+  const getTypeId = (categoryLabel: ComplaintCategory): number | undefined => {
+    const type = types.find((t: any) => 
+      t.name?.toLowerCase() === categoryLabel.toLowerCase() || 
+      t.code?.toLowerCase() === categoryLabel.toLowerCase()
+    );
+    return type?.id as number | undefined;
+  };
+
+  // Map API response to Complaint format
+  const mapComplaintsFromResponse = (response: Record<string, unknown>): Complaint[] => {
+    const apiComplaints = response?.complaints || response?.payload || response?.data || response;
+    const complaintsList = Array.isArray(apiComplaints) ? apiComplaints : [];
     
-    if (!hasFilters) {
-      // Show all complaints if no filters
-      setResults(complaints);
-    } else {
-      const filtered = filterComplaints(filters);
-      setResults(filtered);
+    return complaintsList.map((item: Record<string, unknown>) => {
+      const history = (item.history as Array<Record<string, unknown>>) || [];
+      const latestStatus = history.length > 0 
+        ? (history[history.length - 1].status as Record<string, unknown>)
+        : null;
+      const statusLabel = latestStatus?.label as string || "Open";
+      
+      const typeObj = item.type as Record<string, unknown> || {};
+      const typeName = (typeObj.name as string) || (typeObj.code as string) || "Other";
+      
+      const priorityObj = item.priority as Record<string, unknown> || {};
+      const priorityLabel = (priorityObj.label as string) || "Medium";
+      
+      const files = (item.files as Array<Record<string, unknown>>) || [];
+      const attachments: FileAttachment[] = files.map((file: Record<string, unknown>) => ({
+        id: String(file.id || ''),
+        name: (file.file_name as string) || '',
+        url: (file.url as string) || '',
+        type: (file.type as string) || 'image',
+        size: 0,
+        uploadedBy: '',
+        uploadedAt: new Date().toISOString(),
+      }));
+      
+      const timeline: ComplaintTimelineItem[] = history.map((hist: Record<string, unknown>) => {
+        const statusObj = hist.status as Record<string, unknown> || {};
+        const statusLabel = statusObj.label as string || 'Unknown';
+        const statusCode = statusObj.code as string || '';
+        return {
+          status: statusLabel,
+          date: new Date().toISOString(),
+          description: (hist["Handler Remarks"] as string) || '',
+          isCompleted: statusCode === 'closed',
+          isRefused: statusCode === 'refused',
+          userName: (hist["Case Handle By"] as string) || undefined,
+        };
+      });
+      
+      const mapStatus = (status: string): ComplaintStatus => {
+        const statusStr = status?.toLowerCase() || '';
+        if (statusStr.includes('open')) return 'Open';
+        if (statusStr.includes('progress') || statusStr.includes('pending')) return 'In Progress';
+        if (statusStr.includes('closed') || statusStr.includes('resolved')) return 'Closed';
+        if (statusStr.includes('refused') || statusStr.includes('rejected')) return 'Refused';
+        return 'Open';
+      };
+      
+      return {
+        id: String(item.id || Date.now()),
+        complaintId: `CMP-${item.id}`,
+        caretaker: String(item.Complainant || item.caretaker_name || item.client_name || "Unknown"),
+        typeOfProblem: (typeName === "Late Arrival" ? "Late arrival" : typeName) as ProblemType,
+        description: String(item.description || ""),
+        dateSubmitted: new Date().toLocaleDateString(),
+        lastUpdate: new Date().toLocaleDateString(),
+        status: mapStatus(statusLabel),
+        priority: priorityLabel as Priority,
+        category: undefined,
+        tags: [],
+        attachments: attachments,
+        timeline: timeline,
+      };
+    });
+  };
+
+  const handleSearch = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Build API search filters
+      const searchFilters: any = {};
+      
+      // General search
+      if (filters.searchQuery.trim()) {
+        searchFilters.general_search = filters.searchQuery.trim();
+      }
+      
+      // Status filter (take first selected status)
+      if (filters.status.length > 0) {
+        const statusId = getStatusId(filters.status[0]);
+        if (statusId) {
+          searchFilters.status_id = statusId;
+        }
+      }
+      
+      // Priority filter (take first selected priority)
+      if (filters.priority.length > 0) {
+        const priorityId = getPriorityId(filters.priority[0]);
+        if (priorityId) {
+          searchFilters.priority_id = priorityId;
+        }
+      }
+      
+      // Type filter (take first selected category)
+      if (filters.category.length > 0) {
+        const typeId = getTypeId(filters.category[0]);
+        if (typeId) {
+          searchFilters.type_id = typeId;
+        }
+      }
+      
+      // Date range
+      if (filters.dateRange.start && filters.dateRange.end) {
+        searchFilters.starting_date = `${filters.dateRange.start} 00:00:00`;
+        searchFilters.end_date = `${filters.dateRange.end} 23:59:59`;
+      }
+      
+      // Sort by (default to newest first)
+      searchFilters.sort_by = 1;
+      
+      // Call API
+      const response = await complaintService.search(searchFilters);
+      const mappedComplaints = mapComplaintsFromResponse(response);
+      setResults(mappedComplaints);
+    } catch (err: unknown) {
+      console.error('Error searching complaints:', err);
+      const errorMessage = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || 
+                          (err as { message?: string })?.message || 
+                          'Failed to search complaints';
+      setError(errorMessage);
+      setResults([]);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleExportCSV = () => {
+    if (results.length === 0) return;
     setExporting(true);
-    exportToCSV(results, 'complaints_search_results');
+    const exportData = results.map((c) => ({
+      "Complaint ID": c.complaintId,
+      "Date Submitted": c.dateSubmitted,
+      "Complainant": c.caretaker,
+      "Type": c.typeOfProblem,
+      "Priority": c.priority,
+      "Status": c.status,
+      "Description": c.description,
+    }));
+    exportToCSV(exportData, 'complaints_search_results');
     setTimeout(() => setExporting(false), 1000);
   };
 
   const handleExportExcel = () => {
+    if (results.length === 0) return;
     setExporting(true);
-    exportToExcel(results, 'complaints_search_results');
+    const exportData = results.map((c) => ({
+      "Complaint ID": c.complaintId,
+      "Date Submitted": c.dateSubmitted,
+      "Complainant": c.caretaker,
+      "Type": c.typeOfProblem,
+      "Priority": c.priority,
+      "Status": c.status,
+      "Description": c.description,
+    }));
+    exportToExcel(exportData, 'complaints_search_results');
     setTimeout(() => setExporting(false), 1000);
   };
 
@@ -270,13 +457,24 @@ export default function AdvancedSearchPage() {
           </div>
         )}
 
+        {/* Error Message */}
+        {error && (
+          <div
+            className="rounded-lg p-4 mb-6"
+            style={{
+              backgroundColor: "#FF3F3F",
+              color: "#FFFFFF",
+            }}
+          >
+            <p className="font-semibold">{error}</p>
+          </div>
+        )}
+
         {/* Results */}
-        {(results.length > 0 || complaints.length > 0) && (
+        {results.length > 0 && (
           <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <p className="text-base md:text-lg" style={{ color: '#E6E6E6' }}>
-              {results.length > 0 
-                ? `Found ${results.length} complaint(s)`
-                : `Showing all ${complaints.length} complaint(s)`}
+              Found {results.length} complaint(s)
             </p>
             <div className="flex gap-2 md:gap-4">
               <button
@@ -300,19 +498,18 @@ export default function AdvancedSearchPage() {
         )}
 
         {/* Results List */}
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader size="lg" color="#2AB3EE" />
+          </div>
+        ) : (
         <div className="space-y-4">
-          {results.length === 0 && complaints.length === 0 ? (
+            {results.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-xl" style={{ color: '#E6E6E6', opacity: 0.7 }}>
                 {filters.searchQuery || Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : (typeof v === 'object' && v !== null && Object.values(v).some(x => x))) 
                   ? 'No complaints found matching your criteria'
-                  : 'No complaints available. Create a new complaint to get started.'}
-              </p>
-            </div>
-          ) : results.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-xl" style={{ color: '#E6E6E6', opacity: 0.7 }}>
-                No complaints found matching your criteria. Try adjusting your filters.
+                    : 'Enter search criteria and click "Search" to find complaints.'}
               </p>
             </div>
           ) : (
@@ -354,6 +551,7 @@ export default function AdvancedSearchPage() {
             ))
           )}
         </div>
+        )}
       </div>
     </Layout>
   );

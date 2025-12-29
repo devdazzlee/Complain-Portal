@@ -2,16 +2,15 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Layout from "../../components/Layout";
-import { useApp } from "../../context/AppContext";
+import { complaintService } from "../../../lib/services";
 import { exportToCSV, exportToExcel } from "../../utils/export";
 import Loader from "../../components/Loader";
 
 export default function ReportsPage() {
-  const { getReportData, complaints } = useApp();
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
   
-  // Initialize with a date range that includes sample data (last 3 months to ensure data is shown)
+  // Initialize with a date range (last 3 months)
   const getInitialDateRange = () => {
     const now = new Date();
     const endDate = new Date(now);
@@ -28,16 +27,94 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [exportingCSV, setExportingCSV] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const generateReport = () => {
+  const generateReport = async () => {
+    if (!dateRange.start || !dateRange.end) {
+      setError("Please select both start and end dates");
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      const data = getReportData(
-        dateRange.start && dateRange.end ? dateRange : undefined
-      );
-      setReportData(data);
+    setError(null);
+    try {
+      const response = await complaintService.getReport(dateRange.start, dateRange.end);
+      
+      // Map API response to UI format
+      // API response structure: { status: true, message: "...", complaints: { total_complaints, status_counts, type_counts, priority_counts } }
+      const apiData = response?.data || response?.payload || response;
+      
+      // Debug logging
+      console.log('Report API Response:', apiData);
+      
+      // Transform API data to match UI expectations
+      const transformedData = transformReportData(apiData);
+      console.log('Transformed Report Data:', transformedData);
+      setReportData(transformedData);
+    } catch (err: any) {
+      console.error('Error generating report:', err);
+      setError(err?.response?.data?.message || err?.message || 'Failed to generate report');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
+  };
+
+  // Helper function to format labels (capitalize and replace underscores)
+  const formatLabel = (key: string): string => {
+    return key
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  // Transform API response to UI format
+  const transformReportData = (apiData: any) => {
+    // API returns: { status: true, message: "...", complaints: { total_complaints, status_counts, type_counts, priority_counts } }
+    // The actual report data is nested in apiData.complaints
+    const reportData = apiData?.complaints || apiData;
+    
+    console.log('Extracted reportData:', reportData);
+    
+    // Get total complaints
+    const totalComplaints = reportData?.total_complaints || 0;
+    
+    // Map status counts with formatted labels
+    const statusCounts = reportData?.status_counts || {};
+    const complaintsByStatus: Record<string, number> = {};
+    Object.entries(statusCounts).forEach(([key, value]) => {
+      const formattedKey = formatLabel(key);
+      complaintsByStatus[formattedKey] = value as number;
+    });
+    
+    // Map type counts with formatted labels
+    const typeCounts = reportData?.type_counts || {};
+    const complaintsByCategory: Record<string, number> = {};
+    Object.entries(typeCounts).forEach(([key, value]) => {
+      const formattedKey = formatLabel(key);
+      complaintsByCategory[formattedKey] = value as number;
+    });
+    
+    // Map priority counts with formatted labels
+    const priorityCounts = reportData?.priority_counts || {};
+    const complaintsByPriority: Record<string, number> = {};
+    Object.entries(priorityCounts).forEach(([key, value]) => {
+      const formattedKey = formatLabel(key);
+      complaintsByPriority[formattedKey] = value as number;
+    });
+    
+    // Calculate average response time (placeholder - adjust based on actual API data)
+    const averageResponseTime = reportData?.average_response_time || apiData?.average_response_time || 0;
+    const averageResolutionTime = reportData?.average_resolution_time || apiData?.average_resolution_time || 0;
+    
+    return {
+      totalComplaints,
+      complaintsByStatus: complaintsByStatus,
+      complaintsByCategory: complaintsByCategory,
+      complaintsByPriority: complaintsByPriority,
+      averageResponseTime: averageResponseTime,
+      averageResolutionTime: averageResolutionTime,
+      rawComplaints: [], // API doesn't return individual complaints, only aggregated data
+    };
   };
 
   // Auto-generate report on page load
@@ -49,17 +126,40 @@ export default function ReportsPage() {
   const handleExportCSV = () => {
     if (!reportData) return;
     setExportingCSV(true);
-    const exportData = complaints.map((c) => ({
-      "Complaint ID": c.complaintId,
-      "Date Submitted": c.dateSubmitted,
-      Caretaker: c.caretaker,
-      Type: c.typeOfProblem,
-      Category: c.category || "N/A",
-      Priority: c.priority,
-      Status: c.status,
-      "Assigned To": c.assignedTo || "N/A",
-      Description: c.description,
-    }));
+    
+    // Export aggregated statistics since API doesn't return individual complaints
+    const exportData: any[] = [];
+    
+    // Add summary row
+    exportData.push({
+      "Metric": "Total Complaints",
+      "Value": reportData.totalComplaints,
+    });
+    
+    // Add status breakdown
+    Object.entries(reportData.complaintsByStatus).forEach(([status, count]) => {
+      exportData.push({
+        "Metric": `Status: ${status}`,
+        "Value": count,
+      });
+    });
+    
+    // Add type breakdown
+    Object.entries(reportData.complaintsByCategory).forEach(([type, count]) => {
+      exportData.push({
+        "Metric": `Type: ${type}`,
+        "Value": count,
+      });
+    });
+    
+    // Add priority breakdown
+    Object.entries(reportData.complaintsByPriority).forEach(([priority, count]) => {
+      exportData.push({
+        "Metric": `Priority: ${priority}`,
+        "Value": count,
+      });
+    });
+    
     exportToCSV(exportData, "complaints_report");
     setTimeout(() => setExportingCSV(false), 1000);
   };
@@ -67,17 +167,40 @@ export default function ReportsPage() {
   const handleExportExcel = () => {
     if (!reportData) return;
     setExportingExcel(true);
-    const exportData = complaints.map((c) => ({
-      "Complaint ID": c.complaintId,
-      "Date Submitted": c.dateSubmitted,
-      Caretaker: c.caretaker,
-      Type: c.typeOfProblem,
-      Category: c.category || "N/A",
-      Priority: c.priority,
-      Status: c.status,
-      "Assigned To": c.assignedTo || "N/A",
-      Description: c.description,
-    }));
+    
+    // Export aggregated statistics since API doesn't return individual complaints
+    const exportData: any[] = [];
+    
+    // Add summary row
+    exportData.push({
+      "Metric": "Total Complaints",
+      "Value": reportData.totalComplaints,
+    });
+    
+    // Add status breakdown
+    Object.entries(reportData.complaintsByStatus).forEach(([status, count]) => {
+      exportData.push({
+        "Metric": `Status: ${status}`,
+        "Value": count,
+      });
+    });
+    
+    // Add type breakdown
+    Object.entries(reportData.complaintsByCategory).forEach(([type, count]) => {
+      exportData.push({
+        "Metric": `Type: ${type}`,
+        "Value": count,
+      });
+    });
+    
+    // Add priority breakdown
+    Object.entries(reportData.complaintsByPriority).forEach(([priority, count]) => {
+      exportData.push({
+        "Metric": `Priority: ${priority}`,
+        "Value": count,
+      });
+    });
+    
     exportToExcel(exportData, "complaints_report");
     setTimeout(() => setExportingExcel(false), 1000);
   };
@@ -439,6 +562,19 @@ export default function ReportsPage() {
             )}
           </div>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div
+            className="rounded-lg p-4 mb-6"
+            style={{
+              backgroundColor: "#FF3F3F",
+              color: "#FFFFFF",
+            }}
+          >
+            <p className="font-semibold">{error}</p>
+          </div>
+        )}
 
         {/* Report Data */}
         {loading ? (
