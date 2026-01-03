@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
-import { useApp } from '../../context/AppContext';
+import { useDashboardStore } from '../../../lib/stores/dashboardStore';
+import { complaintService } from '../../../lib/services';
 import {
   Select,
   SelectContent,
@@ -11,12 +12,57 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ComplaintStatus, ProblemType, Priority } from '../../types';
+import { ComplaintStatus, ProblemType, Priority, Complaint } from '../../types';
 import PriorityBadge from '../../components/PriorityBadge';
 import Pagination from '../../components/Pagination';
+import Loader from '../../components/Loader';
+
+// Helper function to map complaints from API response
+const mapComplaintsFromResponse = (response: Record<string, unknown>): Complaint[] => {
+  const apiComplaints = response?.complaints || response?.payload || response?.data || response;
+  const complaintsList = Array.isArray(apiComplaints) ? apiComplaints : [];
+  
+  return complaintsList.map((item: Record<string, unknown>) => {
+    const history = (item.history as Array<Record<string, unknown>>) || [];
+    const latestHistory = history.length > 0 ? history[history.length - 1] : null;
+    const status = latestHistory?.status as Record<string, unknown> | undefined;
+    const type = item.type as Record<string, unknown> | undefined;
+    const priority = item.priority as Record<string, unknown> | undefined;
+    const files = item.files as Array<Record<string, unknown>> | undefined;
+
+    return {
+      id: String(item.id || ''),
+      complaintId: `CMP-${item.id || ''}`,
+      caretaker: String(item['Complainant'] || item.complainant || ''),
+      typeOfProblem: String(type?.name || type?.code || ''),
+      description: String(item.description || ''),
+      status: String(status?.label || status?.code || 'Open') as ComplaintStatus,
+      priority: String(priority?.label || priority?.code || 'Low') as Priority,
+      dateSubmitted: latestHistory ? new Date(String(latestHistory.created_at || '')).toLocaleDateString() : new Date().toLocaleDateString(),
+      assignedTo: String(latestHistory?.['Case Handle By'] || ''),
+      attachments: files?.map((f: Record<string, unknown>) => ({
+        id: String(f.id || ''),
+        name: String(f.file_name || f.path || ''),
+        url: String(f.url || ''),
+        type: String(f.type || ''),
+        size: 0,
+        uploadedBy: '',
+        uploadedAt: new Date().toISOString(),
+      })) || [],
+      timeline: history?.map((h: Record<string, unknown>, index: number) => ({
+        id: String(index),
+        status: String(h.status?.label || h.status?.code || ''),
+        handler: String(h['Case Handle By'] || ''),
+        remarks: String(h['Handler Remarks'] || ''),
+        date: new Date().toISOString(),
+      })) || [],
+    };
+  });
+};
 
 export default function AdminComplaintsPage() {
-  const { complaints } = useApp();
+  const { complaints: storeComplaints, setComplaints, isComplaintsStale } = useDashboardStore();
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'All'>('All');
   const [typeFilter, setTypeFilter] = useState<ProblemType | 'All'>('All');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'All'>('All');
@@ -24,8 +70,31 @@ export default function AdminComplaintsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // Fetch complaints from API (only if stale)
+  useEffect(() => {
+    const fetchComplaints = async () => {
+      if (!isComplaintsStale() && storeComplaints.length > 0) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await complaintService.getAll();
+        const mappedComplaints = mapComplaintsFromResponse(response);
+        setComplaints(mappedComplaints);
+      } catch (error) {
+        console.error('Error fetching complaints:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchComplaints();
+  }, [isComplaintsStale, storeComplaints.length, setComplaints]);
+
   const filteredAndSortedComplaints = useMemo(() => {
-    let filtered = [...complaints];
+    let filtered = [...storeComplaints];
 
     if (statusFilter !== 'All') {
       filtered = filtered.filter(c => c.status === statusFilter);
@@ -62,7 +131,7 @@ export default function AdminComplaintsPage() {
     });
 
     return filtered;
-  }, [complaints, statusFilter, typeFilter, priorityFilter, sortBy]);
+  }, [storeComplaints, statusFilter, typeFilter, priorityFilter, sortBy]);
 
   const totalPages = Math.ceil(filteredAndSortedComplaints.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -84,6 +153,16 @@ export default function AdminComplaintsPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <Layout role="admin">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader size="lg" />
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout role="admin">
       <div className="max-w-7xl mx-auto">
@@ -91,6 +170,19 @@ export default function AdminComplaintsPage() {
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold" style={{ color: '#E6E6E6' }}>
             All Complaints
           </h1>
+          <Link
+            href="/admin/complaints/new"
+            className="w-full sm:w-auto px-4 md:px-6 py-3 rounded-lg font-semibold text-base md:text-lg text-center whitespace-nowrap transition-colors"
+            style={{ 
+              backgroundColor: '#FF8800', 
+              color: '#E6E6E6', 
+              minHeight: '52px',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#E67700'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FF8800'}
+          >
+            + New Complaint
+          </Link>
         </div>
 
         {/* Filters */}

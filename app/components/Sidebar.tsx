@@ -85,6 +85,11 @@ export default function Sidebar({ role }: SidebarProps) {
     { href: "/admin/settings", label: "Settings", icon: Settings },
     { href: "/admin/complaints", label: "All Complaints", icon: FileText },
     {
+      href: "/admin/complaints/new",
+      label: "New Complaint",
+      icon: PlusCircle,
+    },
+    {
       href: "/admin/assignments",
       label: "Assignment Workflow",
       icon: Workflow,

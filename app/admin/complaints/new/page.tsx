@@ -1,15 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Layout from '../../../../components/Layout';
-import { useApp } from '../../../../context/AppContext';
-import { complaintService, dswService, clientService } from '../../../../../lib/services';
-import { useDashboardStore } from '../../../../../lib/stores/dashboardStore';
-import { useComplaintDetailStore } from '../../../../../lib/stores/complaintDetailStore';
-import { ProblemType, Priority, Complaint } from '../../../../types';
-import Loader from '../../../../components/Loader';
-import Toast from '../../../../components/Toast';
+import React, { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Select,
   SelectContent,
@@ -17,6 +9,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import Layout from '../../../components/Layout';
+import { useApp } from '../../../context/AppContext';
+import { complaintService, dswService, clientService } from '../../../../lib/services';
+import { ProblemType, Priority } from '../../../types';
+import Loader from '../../../components/Loader';
+import Toast from '../../../components/Toast';
+import FileGallery from '../../../components/FileGallery';
+import { useDashboardStore } from '../../../../lib/stores/dashboardStore';
 
 const problemTypes: { type: ProblemType; icon: string; label: string }[] = [
   { type: 'Late arrival', icon: '🕐', label: 'Late arrival' },
@@ -25,54 +25,12 @@ const problemTypes: { type: ProblemType; icon: string; label: string }[] = [
   { type: 'Other', icon: '🏠', label: 'Other' },
 ];
 
-// Helper function to map complaint from API response
-const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint => {
-  const history = (item.history as Array<Record<string, unknown>>) || [];
-  const latestHistory = history.length > 0 ? history[history.length - 1] : null;
-  const status = latestHistory?.status as Record<string, unknown> | undefined;
-  const type = item.type as Record<string, unknown> | undefined;
-  const priority = item.priority as Record<string, unknown> | undefined;
-  const files = item.files as Array<Record<string, unknown>> | undefined;
-
-  return {
-    id: String(item.id || ''),
-    complaintId: `CMP-${item.id || ''}`,
-    caretaker: String(item['Complainant'] || item.complainant || ''),
-    typeOfProblem: String(type?.name || type?.code || ''),
-    description: String(item.description || ''),
-    status: String(status?.label || status?.code || 'Open'),
-    priority: String(priority?.label || priority?.code || 'Low') as Priority,
-    dateSubmitted: latestHistory ? new Date(String(latestHistory.created_at || '')).toLocaleDateString() : new Date().toLocaleDateString(),
-    assignedTo: String(latestHistory?.['Case Handle By'] || ''),
-    attachments: files?.map((f: Record<string, unknown>) => ({
-      id: String(f.id || ''),
-      name: String(f.file_name || f.path || ''),
-      url: String(f.url || ''),
-      type: String(f.type || ''),
-      size: 0,
-      uploadedBy: '',
-      uploadedAt: new Date().toISOString(),
-    })) || [],
-    timeline: history?.map((h: Record<string, unknown>, index: number) => ({
-      id: String(index),
-      status: String(h.status?.label || h.status?.code || ''),
-      handler: String(h['Case Handle By'] || ''),
-      remarks: String(h['Handler Remarks'] || ''),
-      date: new Date().toISOString(),
-    })) || [],
-  };
-};
-
-export default function EditComplaintPage() {
-  const params = useParams();
+export default function NewComplaintPage() {
   const router = useRouter();
   const { currentUser } = useApp();
-  const { complaints: storeComplaints } = useDashboardStore();
-  const { getComplaint, setComplaint: setComplaintInStore, isStale } = useComplaintDetailStore();
-  const [complaint, setComplaint] = useState<Complaint | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { setComplaints, isComplaintsStale } = useDashboardStore();
+  const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [formData, setFormData] = useState({
     dswId: '',
@@ -87,61 +45,12 @@ export default function EditComplaintPage() {
   const [types, setTypes] = useState<Array<Record<string, unknown>>>([]);
   const [priorities, setPriorities] = useState<Array<Record<string, unknown>>>([]);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [dswSearch, setDswSearch] = useState('');
   const [clientSearch, setClientSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch complaint data
-  useEffect(() => {
-    const fetchComplaint = async () => {
-      try {
-        setLoading(true);
-        const complaintId = params.id as string;
-        const numericId = complaintId.replace('CMP-', '');
-        
-        // First try Zustand stores
-        const cachedComplaint = getComplaint(complaintId) || getComplaint(numericId);
-        const cachedId = getComplaint(complaintId) ? complaintId : numericId;
-        if (cachedComplaint && cachedId && !isStale(cachedId)) {
-          setComplaint(cachedComplaint);
-          setFormData({
-            dswId: '',
-            clientId: '',
-            typeOfProblem: cachedComplaint.typeOfProblem as ProblemType,
-            priority: cachedComplaint.priority,
-            description: cachedComplaint.description,
-            remarks: '',
-          });
-          setLoading(false);
-        } else {
-          // Fetch from API
-          const response = await complaintService.getById(complaintId);
-          if (response.complaint) {
-            const mappedComplaint = mapComplaintFromResponse(response.complaint);
-            setComplaint(mappedComplaint);
-            setComplaintInStore(complaintId, mappedComplaint);
-      setFormData({
-              dswId: '',
-              clientId: '',
-              typeOfProblem: mappedComplaint.typeOfProblem as ProblemType,
-              priority: mappedComplaint.priority,
-              description: mappedComplaint.description,
-              remarks: '',
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching complaint:', error);
-        setToast({ message: 'Failed to load complaint', type: 'error' });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchComplaint();
-  }, [params.id, getComplaint, setComplaintInStore, isStale]);
-
-  // Fetch DSWs, Clients, Types, Priorities
+  // Fetch DSWs, Clients, Types, Priorities on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -153,25 +62,30 @@ export default function EditComplaintPage() {
           complaintService.getPriorities().catch(() => ({ data: [] })),
         ]);
 
+        // Map DSWs
         const mappedDsws = Array.isArray(dswsResponse) ? dswsResponse.map((dsw: Record<string, unknown>) => ({
           id: Number(dsw.id || 0),
           name: String(dsw.name || dsw.first_name || dsw.username || ''),
         })) : [];
         setDsws(mappedDsws);
 
+        // Map Clients
         const mappedClients = Array.isArray(clientsResponse) ? clientsResponse.map((client: Record<string, unknown>) => ({
           id: Number(client.id || 0),
           name: String(client.name || client.first_name || client.username || ''),
         })) : [];
         setClients(mappedClients);
 
+        // Map Types
         const apiTypes = typesResponse?.payload || typesResponse?.data || typesResponse;
         setTypes(Array.isArray(apiTypes) ? apiTypes : []);
 
+        // Map Priorities
         const apiPriorities = prioritiesResponse?.payload || prioritiesResponse?.data || prioritiesResponse;
         setPriorities(Array.isArray(apiPriorities) ? apiPriorities : []);
       } catch (error) {
-        console.error('Error fetching form data:', error);
+        console.error('Error fetching data:', error);
+        setToast({ message: 'Failed to load form data', type: 'error' });
       } finally {
         setFetching(false);
       }
@@ -180,7 +94,7 @@ export default function EditComplaintPage() {
     fetchData();
   }, []);
 
-  // Filter DSWs and Clients
+  // Filter DSWs and Clients based on search
   const filteredDsws = dsws.filter(dsw =>
     dsw.name.toLowerCase().includes(dswSearch.toLowerCase())
   );
@@ -210,7 +124,7 @@ export default function EditComplaintPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!complaint || !formData.typeOfProblem || !formData.description.trim()) {
+    if (!formData.dswId || !formData.clientId || !formData.typeOfProblem || !formData.description.trim()) {
       setToast({ message: 'Please fill in all required fields', type: 'error' });
       return;
     }
@@ -223,47 +137,43 @@ export default function EditComplaintPage() {
       return;
     }
 
-    setSubmitting(true);
+    setLoading(true);
     try {
-      const complaintId = typeof complaint.id === 'string' ? parseInt(complaint.id.replace('CMP-', '')) : complaint.id;
-      
       const formDataToSend = new FormData();
-      formDataToSend.append('complaint_id', String(complaintId));
-      if (formData.dswId) formDataToSend.append('dsw_id', formData.dswId);
-      if (formData.clientId) formDataToSend.append('client_id', formData.clientId);
+      formDataToSend.append('dsw_id', formData.dswId);
+      formDataToSend.append('client_id', formData.clientId);
       formDataToSend.append('description', formData.description);
-      formDataToSend.append('status_id', '1'); // Keep as Open for now
+      formDataToSend.append('case_start_by', String(currentUser?.id || ''));
+      formDataToSend.append('status_id', '1'); // Open
       formDataToSend.append('priority_id', String(priorityId));
       formDataToSend.append('type_id', String(typeId));
-      formDataToSend.append('remarks', formData.remarks || `Complaint updated by ${currentUser?.name || 'provider'}`);
-      formDataToSend.append('case_start_by', String(currentUser?.id || ''));
+      formDataToSend.append('remarks', formData.remarks || `Complaint created by ${currentUser?.name || 'admin'}`);
 
-      // Add file attachments if any
+      // Add file attachments
       attachments.forEach((file) => {
         formDataToSend.append('file', file);
       });
 
-      const response = await complaintService.update(formDataToSend);
+      const response = await complaintService.add(formDataToSend);
       
       if (response?.status || response?.message) {
         // Refresh complaints list
         useDashboardStore.setState({ complaintsLastFetched: null });
-        useComplaintDetailStore.setState({ lastFetched: { ...useComplaintDetailStore.getState().lastFetched, [String(complaintId)]: null } });
-        setToast({ message: response?.message || 'Complaint updated successfully!', type: 'success' });
+        setToast({ message: response?.message || 'Complaint submitted successfully!', type: 'success' });
         setTimeout(() => {
-          router.push(`/provider/complaints/${complaint.id}`);
+          router.push('/admin/complaints');
         }, 1500);
       } else {
-        throw new Error('Failed to update complaint');
+        throw new Error('Failed to create complaint');
       }
     } catch (error: any) {
-      console.error('Error updating complaint:', error);
+      console.error('Error creating complaint:', error);
       setToast({ 
-        message: error?.response?.data?.message || error?.message || 'Failed to update complaint', 
+        message: error?.response?.data?.message || error?.message || 'Failed to create complaint', 
         type: 'error' 
       });
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
@@ -273,12 +183,14 @@ export default function EditComplaintPage() {
 
     const fileArray = Array.from(files);
     
+    // Validate file size (max 10MB per file)
     const invalidFiles = fileArray.filter(file => file.size > 10 * 1024 * 1024);
     if (invalidFiles.length > 0) {
       setToast({ message: `Some files are too large (max 10MB per file)`, type: 'error' });
       return;
     }
 
+    // Validate file type
     const allowedTypes = ['image/', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     const invalidTypes = fileArray.filter(file => !allowedTypes.some(type => file.type.startsWith(type)));
     if (invalidTypes.length > 0) {
@@ -293,9 +205,12 @@ export default function EditComplaintPage() {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
-  if (loading || fetching) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  if (fetching) {
     return (
-      <Layout role="provider">
+      <Layout role="admin">
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader size="lg" />
         </div>
@@ -303,42 +218,18 @@ export default function EditComplaintPage() {
     );
   }
 
-  if (!complaint) {
-    return (
-      <Layout role="provider">
-        <div className="text-center py-16">
-          <p style={{ color: '#E6E6E6', fontSize: '1.5rem', marginBottom: '1.5rem' }}>Complaint not found</p>
-          <button
-            onClick={() => router.push('/provider/dashboard')}
-            className="rounded-lg font-semibold transition-colors"
-            style={{ 
-              color: '#2AB3EE',
-              fontSize: '1.125rem',
-              padding: '14px 28px',
-              minHeight: '56px'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#1F8FD0'}
-            onMouseLeave={(e) => e.currentTarget.style.color = '#2AB3EE'}
-          >
-            Back to Dashboard
-          </button>
-        </div>
-      </Layout>
-    );
-  }
-
   return (
-    <Layout role="provider">
+    <Layout role="admin">
       <div className="max-w-3xl mx-auto">
-        <h1 className="text-4xl md:text-5xl font-bold mb-3" style={{ color: '#E6E6E6' }}>Edit Complaint</h1>
-        <div className="flex items-center gap-4 mb-8" style={{ color: '#E6E6E6', opacity: 0.8, fontSize: '1.125rem' }}>
-          <span>Complaint ID: {complaint.complaintId}</span>
+        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-3" style={{ color: '#E6E6E6' }}>Create New Complaint</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6 md:mb-8 text-base md:text-lg" style={{ color: '#E6E6E6', opacity: 0.8 }}>
+          <span>Date: {dateStr}</span>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* DSW Selection */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>DSW (Direct Service Worker)</label>
+            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>DSW (Direct Service Worker) *</label>
             <Select value={formData.dswId} onValueChange={(value) => setFormData({ ...formData, dswId: value })}>
               <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
                 <SelectValue placeholder="Search or select DSW..." />
@@ -412,7 +303,7 @@ export default function EditComplaintPage() {
 
           {/* Client Selection */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Client</label>
+            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Client *</label>
             <Select value={formData.clientId} onValueChange={(value) => setFormData({ ...formData, clientId: value })}>
               <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
                 <SelectValue placeholder="Search or select client..." />
@@ -484,22 +375,6 @@ export default function EditComplaintPage() {
             </Select>
           </div>
 
-          {/* Priority */}
-          <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Priority</label>
-            <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value as Priority })}>
-              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
-                <SelectItem value="Low" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Low</SelectItem>
-                <SelectItem value="Medium" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Medium</SelectItem>
-                <SelectItem value="High" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">High</SelectItem>
-                <SelectItem value="Urgent" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Urgent</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Type of Problem */}
           <div>
             <label className="block mb-4" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Choose one of the options *</label>
@@ -535,30 +410,46 @@ export default function EditComplaintPage() {
             </div>
           </div>
 
+          {/* Priority */}
+          <div>
+            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Priority</label>
+            <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value as Priority })}>
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
+                <SelectItem value="Low" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Low</SelectItem>
+                <SelectItem value="Medium" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Medium</SelectItem>
+                <SelectItem value="High" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">High</SelectItem>
+                <SelectItem value="Urgent" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Urgent</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Description */}
           <div>
             <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Describe What Happened *</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Please tell us what happened"
-                rows={8}
-                required
-                className="w-full rounded-lg outline-none transition resize-none placeholder:opacity-50"
-                style={{ 
-                  backgroundColor: '#1F2022', 
-                  borderColor: '#E6E6E6', 
-                  borderWidth: '2px', 
-                  borderStyle: 'solid', 
-                  color: '#E6E6E6',
-                  fontSize: '1.125rem',
-                  padding: '16px 20px',
-                  minHeight: '180px'
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
-                onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
-              />
-            </div>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Please tell us what happened"
+              rows={8}
+              required
+              className="w-full rounded-lg outline-none transition resize-none placeholder:opacity-50"
+              style={{ 
+                backgroundColor: '#1F2022', 
+                borderColor: '#E6E6E6', 
+                borderWidth: '2px', 
+                borderStyle: 'solid', 
+                color: '#E6E6E6',
+                fontSize: '1.125rem',
+                padding: '16px 20px',
+                minHeight: '180px'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
+              onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
+            />
+          </div>
 
           {/* Remarks */}
           <div>
@@ -637,12 +528,14 @@ export default function EditComplaintPage() {
                 accept="image/*,.pdf,.doc,.docx"
                 onChange={handleFileChange}
                 className="sr-only"
+                disabled={uploading}
                 style={{ display: 'none' }}
               />
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 cursor-pointer transition-opacity"
+                disabled={uploading}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 cursor-pointer transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ 
                   color: '#E6E6E6',
                   minWidth: '44px',
@@ -651,58 +544,61 @@ export default function EditComplaintPage() {
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                onMouseEnter={(e) => !uploading && (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={(e) => !uploading && (e.currentTarget.style.opacity = '0.7')}
               >
                 <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
               </button>
             </div>
+            {uploading && (
+              <p className="mt-2" style={{ color: '#2AB3EE', fontSize: '1rem' }}>Uploading files...</p>
+            )}
             <p className="mt-2" style={{ color: '#E6E6E6', opacity: 0.7, fontSize: '1rem' }}>You can upload multiple files. Supported: Images, PDF, DOC, DOCX. Max 10MB per file.</p>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 pt-6">
+          <div className="flex flex-col gap-3 md:gap-4 pt-4 md:pt-6">
             <button
               type="button"
               onClick={() => router.back()}
-              className="flex-1 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-3"
+              className="w-full text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-3"
               style={{ 
                 backgroundColor: '#2A2B30',
-                fontSize: '1.125rem',
-                padding: '16px 28px',
-                minHeight: '60px'
+                fontSize: '1rem',
+                padding: '14px 24px',
+                minHeight: '56px',
               }}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1F2022'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2A2B30'}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
               Cancel
             </button>
             <button
               type="submit"
-              disabled={submitting || !formData.typeOfProblem || !formData.description.trim()}
-              className="flex-1 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              disabled={loading || !formData.dswId || !formData.clientId || !formData.typeOfProblem || !formData.description.trim()}
+              className="w-full text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
               style={{ 
-                backgroundColor: submitting ? '#2A2B30' : '#009200',
-                fontSize: '1.125rem',
-                padding: '16px 28px',
-                minHeight: '60px'
+                backgroundColor: loading ? '#2A2B30' : '#009200',
+                fontSize: '1rem',
+                padding: '14px 24px',
+                minHeight: '56px',
               }}
-              onMouseEnter={(e) => !submitting && !(!formData.typeOfProblem || !formData.description.trim()) && (e.currentTarget.style.backgroundColor = '#007700')}
-              onMouseLeave={(e) => !submitting && (e.currentTarget.style.backgroundColor = '#009200')}
+              onMouseEnter={(e) => !loading && !(!formData.dswId || !formData.clientId || !formData.typeOfProblem || !formData.description.trim()) && (e.currentTarget.style.backgroundColor = '#007700')}
+              onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#009200')}
             >
-              {submitting ? (
+              {loading ? (
                 <>
                   <Loader size="sm" color="#FFFFFF" />
-                  Updating...
+                  Submitting...
                 </>
               ) : (
                 <>
-                  Update Complaint
+                  Submit
                   <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
@@ -722,3 +618,6 @@ export default function EditComplaintPage() {
     </Layout>
   );
 }
+
+
+

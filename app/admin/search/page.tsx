@@ -9,9 +9,40 @@ import PriorityBadge from '../../components/PriorityBadge';
 import { exportToCSV, exportToExcel } from '../../utils/export';
 import Pagination from '../../components/Pagination';
 import Loader from '../../components/Loader';
+import { useSearchStore } from '../../../lib/stores/searchStore';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function AdvancedSearchPage() {
   const router = useRouter();
+  const {
+    statuses,
+    types,
+    priorities,
+    sortByOptions,
+    setStatuses,
+    setTypes,
+    setPriorities,
+    setSortByOptions,
+    isMetadataStale,
+  } = useSearchStore();
+
+  // Debug: Log store values when they change
+  useEffect(() => {
+    console.log('=== Store Values Updated ===');
+    console.log('Statuses:', statuses);
+    console.log('Statuses length:', statuses?.length);
+    console.log('Types:', types);
+    console.log('Types length:', types?.length);
+    console.log('SortByOptions:', sortByOptions);
+    console.log('SortByOptions length:', sortByOptions?.length);
+  }, [statuses, types, sortByOptions]);
+
   const [filters, setFilters] = useState({
     searchQuery: '',
     status: [] as ComplaintStatus[],
@@ -24,54 +55,121 @@ export default function AdvancedSearchPage() {
     },
     tags: [] as string[],
   });
+  const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'All'>('All');
+  const [typeFilter, setTypeFilter] = useState<ProblemType | 'All'>('All');
+  const [priorityFilter, setPriorityFilter] = useState<Priority | 'All'>('All');
+  const [sortBy, setSortBy] = useState<string>('');
   const [results, setResults] = useState<Complaint[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [exportingCSV, setExportingCSV] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [, setStatuses] = useState<Array<Record<string, unknown>>>([]);
-  const [types, setTypes] = useState<Array<Record<string, unknown>>>([]);
-  const [priorities, setPriorities] = useState<Array<Record<string, unknown>>>([]);
   const [error, setError] = useState<string | null>(null);
   const itemsPerPage = 10;
 
-  // Fetch statuses, types, and priorities on mount
+  // Fetch statuses, types, priorities, and sort options on mount (only if stale)
   useEffect(() => {
     const fetchMetadata = async () => {
+      // Only skip if data exists and is not stale
+      if (!isMetadataStale() && statuses.length > 0 && types.length > 0 && priorities.length > 0 && sortByOptions.length > 0) {
+        // Set default sortBy if not set
+        if (!sortBy && sortByOptions.length > 0) {
+          const firstSortOption = sortByOptions[0] as Record<string, unknown>;
+          setSortBy(String(firstSortOption.id || firstSortOption.value || ''));
+        }
+        return;
+      }
+
       try {
-        const [statusesResponse, typesResponse, prioritiesResponse] = await Promise.all([
-          complaintService.getStatuses().catch(() => ({ data: [] })),
-          complaintService.getTypes().catch(() => ({ data: [] })),
-          complaintService.getPriorities().catch(() => ({ data: [] })),
+        console.log('Fetching metadata from API...');
+        const [statusesResponse, typesResponse, prioritiesResponse, sortByResponse] = await Promise.all([
+          complaintService.getStatuses().catch((err) => {
+            console.error('Error fetching statuses:', err);
+            return { data: [] };
+          }),
+          complaintService.getTypes().catch((err) => {
+            console.error('Error fetching types:', err);
+            return { data: [] };
+          }),
+          complaintService.getPriorities().catch((err) => {
+            console.error('Error fetching priorities:', err);
+            return { data: [] };
+          }),
+          complaintService.getSortByOptions().catch((err) => {
+            console.error('Error fetching sortByOptions:', err);
+            return { data: [] };
+          }),
         ]);
 
-        const apiStatuses = statusesResponse?.payload || statusesResponse?.data || statusesResponse;
-        setStatuses(Array.isArray(apiStatuses) ? apiStatuses : []);
+        console.log('Statuses response:', statusesResponse);
+        console.log('Types response:', typesResponse);
+        console.log('SortBy response:', sortByResponse);
 
-        const apiTypes = typesResponse?.payload || typesResponse?.data || typesResponse;
-        setTypes(Array.isArray(apiTypes) ? apiTypes : []);
+        // Parse statuses - API returns { status: true, statuses: [...] }
+        const apiStatuses = statusesResponse?.statuses || statusesResponse?.payload || statusesResponse?.data || (Array.isArray(statusesResponse) ? statusesResponse : []);
+        const statusesArray = Array.isArray(apiStatuses) ? apiStatuses : [];
+        console.log('Parsed statuses:', statusesArray);
+        console.log('Statuses array length:', statusesArray.length);
+        setStatuses(statusesArray);
 
-        const apiPriorities = prioritiesResponse?.payload || prioritiesResponse?.data || prioritiesResponse;
+        // Parse types - API returns { status: true, types: [...] }
+        const apiTypes = typesResponse?.types || typesResponse?.payload || typesResponse?.data || (Array.isArray(typesResponse) ? typesResponse : []);
+        const typesArray = Array.isArray(apiTypes) ? apiTypes : [];
+        console.log('Parsed types:', typesArray);
+        console.log('Types array length:', typesArray.length);
+        setTypes(typesArray);
+
+        // Parse priorities
+        const apiPriorities = prioritiesResponse?.priorities || prioritiesResponse?.payload || prioritiesResponse?.data || (Array.isArray(prioritiesResponse) ? prioritiesResponse : []);
         setPriorities(Array.isArray(apiPriorities) ? apiPriorities : []);
+
+        // Parse sort by options
+        const apiSortBy = sortByResponse?.sort_by || sortByResponse?.sortByOptions || sortByResponse?.payload || sortByResponse?.data || (Array.isArray(sortByResponse) ? sortByResponse : []);
+        const sortByList = Array.isArray(apiSortBy) ? apiSortBy : [];
+        console.log('Parsed sortBy:', JSON.stringify(sortByList, null, 2));
+        console.log('SortBy array length:', sortByList.length);
+        if (sortByList.length > 0) {
+          setSortByOptions(sortByList);
+          console.log('✅ SortByOptions set in store');
+        } else {
+          console.warn('⚠️ SortByOptions array is empty!');
+        }
+        
+        // Set default sortBy if not set
+        if (!sortBy && sortByList.length > 0) {
+          const firstSortOption = sortByList[0] as Record<string, unknown>;
+          setSortBy(String(firstSortOption.id || firstSortOption.value || ''));
+        }
       } catch (err) {
         console.error('Error fetching metadata:', err);
       }
     };
 
     fetchMetadata();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMetadataStale, statuses.length, types.length, priorities.length, sortByOptions.length, setStatuses, setTypes, setPriorities, setSortByOptions]);
 
-  // Map status label to ID
-  const getStatusId = (statusLabel: ComplaintStatus): number | undefined => {
-    const statusMap: Record<string, number> = {
-      'Open': 1,
-      'In Progress': 2,
-      'On Hold': 3,
-      'Refused': 4,
-      'Closed': 5,
-    };
-    return statusMap[statusLabel];
+  // Map status label to ID from API
+  const getStatusId = (statusLabel: ComplaintStatus | 'All'): number | undefined => {
+    if (statusLabel === 'All') return undefined;
+    const status = statuses.find((s: Record<string, unknown>) => 
+      (s.label as string)?.toLowerCase() === statusLabel.toLowerCase() || 
+      (s.code as string)?.toLowerCase() === statusLabel.toLowerCase() ||
+      (s.name as string)?.toLowerCase() === statusLabel.toLowerCase()
+    );
+    return status?.id as number | undefined;
+  };
+
+  // Map status from API to UI format
+  const mapStatus = (statusName: string): ComplaintStatus => {
+    const statusStr = statusName?.toLowerCase() || '';
+    if (statusStr.includes('open')) return 'Open';
+    if (statusStr.includes('progress') || statusStr.includes('pending')) return 'In Progress';
+    if (statusStr.includes('closed') || statusStr.includes('resolved')) return 'Closed';
+    if (statusStr.includes('refused') || statusStr.includes('rejected')) return 'Refused';
+    if (statusStr.includes('hold')) return 'In Progress';
+    return 'Open';
   };
 
   // Map priority label to ID
@@ -183,27 +281,50 @@ export default function AdvancedSearchPage() {
         searchFilters.general_search = filters.searchQuery.trim();
       }
       
-      // Status filter (take first selected status)
-      if (filters.status.length > 0) {
+      // Status filter (use dropdown filter first, then button filters)
+      if (statusFilter !== 'All') {
+        const statusId = getStatusId(statusFilter);
+        if (statusId) {
+          searchFilters.status_id = statusId;
+        }
+      } else if (filters.status.length > 0) {
         const statusId = getStatusId(filters.status[0]);
         if (statusId) {
           searchFilters.status_id = statusId;
         }
       }
       
-      // Priority filter (take first selected priority)
-      if (filters.priority.length > 0) {
+      // Priority filter (use dropdown filter first, then button filters)
+      if (priorityFilter !== 'All') {
+        const priorityId = getPriorityId(priorityFilter);
+        if (priorityId) {
+          searchFilters.priority_id = priorityId;
+        }
+      } else if (filters.priority.length > 0) {
         const priorityId = getPriorityId(filters.priority[0]);
         if (priorityId) {
           searchFilters.priority_id = priorityId;
         }
       }
       
-      // Type filter (take first selected category)
-      if (filters.category.length > 0) {
+      // Type filter (use dropdown filter first, then button filters)
+      if (typeFilter !== 'All') {
+        const typeId = getTypeId(typeFilter as ComplaintCategory);
+        if (typeId) {
+          searchFilters.type_id = typeId;
+        }
+      } else if (filters.category.length > 0) {
         const typeId = getTypeId(filters.category[0]);
         if (typeId) {
           searchFilters.type_id = typeId;
+        }
+      }
+      
+      // Sort by (use API value directly)
+      if (sortBy) {
+        const sortByValue = parseInt(sortBy);
+        if (!isNaN(sortByValue)) {
+          searchFilters.sort_by = sortByValue;
         }
       }
       
@@ -213,8 +334,6 @@ export default function AdvancedSearchPage() {
         searchFilters.end_date = `${filters.dateRange.end} 23:59:59`;
       }
       
-      // Sort by (default to newest first)
-      searchFilters.sort_by = 1;
       
       // Call API
       const response = await complaintService.search(searchFilters);
@@ -362,6 +481,131 @@ export default function AdvancedSearchPage() {
           </div>
         </div>
 
+        {/* Dropdown Filters */}
+        <div className="rounded-lg p-4 md:p-6 mb-4 md:mb-6" style={{ backgroundColor: '#2A2B30' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            <div>
+              <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>Filter by Status</label>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ComplaintStatus | 'All')}>
+                <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
+                  <SelectItem value="All" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">All Status</SelectItem>
+                  {(() => {
+                    console.log('Rendering statuses dropdown, statuses:', statuses, 'length:', statuses?.length);
+                    if (!statuses || statuses.length === 0) {
+                      return <SelectItem value="loading" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Loading...</SelectItem>;
+                    }
+                    return statuses.map((status: Record<string, unknown>) => {
+                      const statusName = (status.label as string) || (status.name as string) || (status.code as string) || '';
+                      const statusValue = mapStatus(statusName);
+                      if (!statusName) return null;
+                      return (
+                        <SelectItem
+                          key={String(status.id || status.code || '')}
+                          value={statusValue}
+                          className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]"
+                        >
+                          {statusName}
+                        </SelectItem>
+                      );
+                    });
+                  })()}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>Filter by Type</label>
+              <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as ProblemType | 'All')}>
+                <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
+                  <SelectItem value="All" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">All Types</SelectItem>
+                  {(() => {
+                    console.log('Rendering types dropdown, types:', types, 'length:', types?.length);
+                    if (!types || types.length === 0) {
+                      return <SelectItem value="loading" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Loading...</SelectItem>;
+                    }
+                    return types.map((type: Record<string, unknown>) => {
+                      const typeName = (type.name as string) || (type.code as string) || '';
+                      const typeValue = typeName === 'Late Arrival' ? 'Late arrival' : typeName;
+                      if (!typeName) return null;
+                      return (
+                        <SelectItem
+                          key={String(type.id || type.code || '')}
+                          value={typeValue}
+                          className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]"
+                        >
+                          {typeName}
+                        </SelectItem>
+                      );
+                    });
+                  })()}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>Filter by Priority</label>
+              <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as Priority | 'All')}>
+                <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
+                  <SelectItem value="All" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">All Priorities</SelectItem>
+                  {priorities.length > 0 ? (
+                    priorities.map((priority: Record<string, unknown>) => {
+                      const priorityName = (priority.label as string) || (priority.name as string) || (priority.code as string) || '';
+                      return (
+                        <SelectItem
+                          key={String(priority.id || '')}
+                          value={priorityName}
+                          className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]"
+                        >
+                          {priorityName}
+                        </SelectItem>
+                      );
+                    })
+                  ) : (
+                    <SelectItem value="loading" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Loading...</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>Sort By</label>
+              <Select value={sortBy} onValueChange={(value) => setSortBy(value)}>
+                <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
+                  <SelectValue placeholder="Select sort option" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
+                  {sortByOptions.length > 0 ? (
+                    sortByOptions.map((option: Record<string, unknown>) => {
+                      const optionId = String(option.id || option.value || '');
+                      const optionLabel = String(option.label || option.name || option.value || '');
+                      return (
+                        <SelectItem
+                          key={optionId}
+                          value={optionId}
+                          className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]"
+                        >
+                          {optionLabel}
+                        </SelectItem>
+                      );
+                    })
+                  ) : (
+                    <SelectItem value="loading" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Loading...</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
         {/* Advanced Filters */}
         {showFilters && (
           <div className="rounded-lg p-4 md:p-6 mb-4 md:mb-6" style={{ backgroundColor: '#2A2B30' }}>
@@ -371,20 +615,24 @@ export default function AdvancedSearchPage() {
             <div className="mb-4">
               <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>Status</label>
               <div className="flex flex-wrap gap-2">
-                {(['Open', 'In Progress', 'Closed', 'Refused'] as ComplaintStatus[]).map(status => (
+                {statuses.map((status: Record<string, unknown>) => {
+                  const statusName = (status.label as string) || (status.name as string) || (status.code as string) || '';
+                  const statusValue = mapStatus(statusName);
+                  return (
                   <button
-                    key={status}
-                    onClick={() => toggleStatus(status)}
+                      key={String(status.id || '')}
+                      onClick={() => toggleStatus(statusValue)}
                     className="px-4 py-2 rounded-lg font-semibold"
                     style={{
-                      backgroundColor: filters.status.includes(status) ? '#2AB3EE' : '#1F2022',
+                        backgroundColor: filters.status.includes(statusValue) ? '#2AB3EE' : '#1F2022',
                       color: '#E6E6E6',
                       border: '2px solid #E6E6E6',
                     }}
                   >
-                    {status}
+                      {statusName}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -392,20 +640,23 @@ export default function AdvancedSearchPage() {
             <div className="mb-4">
               <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>Priority</label>
               <div className="flex flex-wrap gap-2">
-                {(['Low', 'Medium', 'High', 'Urgent'] as Priority[]).map(priority => (
+                {priorities.map((priority: Record<string, unknown>) => {
+                  const priorityName = (priority.label as string) || (priority.name as string) || (priority.code as string) || '';
+                  return (
                   <button
-                    key={priority}
-                    onClick={() => togglePriority(priority)}
+                      key={String(priority.id || '')}
+                      onClick={() => togglePriority(priorityName as Priority)}
                     className="px-4 py-2 rounded-lg font-semibold"
                     style={{
-                      backgroundColor: filters.priority.includes(priority) ? '#2AB3EE' : '#1F2022',
+                        backgroundColor: filters.priority.includes(priorityName as Priority) ? '#2AB3EE' : '#1F2022',
                       color: '#E6E6E6',
                       border: '2px solid #E6E6E6',
                     }}
                   >
-                    {priority}
+                      {priorityName}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -413,20 +664,24 @@ export default function AdvancedSearchPage() {
             <div className="mb-4">
               <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>Category</label>
               <div className="flex flex-wrap gap-2">
-                {(['Service Quality', 'Staff Behavior', 'Timing Issues', 'Safety Concerns', 'Billing', 'Other'] as ComplaintCategory[]).map(category => (
+                {types.map((type: Record<string, unknown>) => {
+                  const typeName = (type.name as string) || (type.code as string) || '';
+                  const categoryValue = typeName === 'Late Arrival' ? 'Late arrival' : typeName;
+                  return (
                   <button
-                    key={category}
-                    onClick={() => toggleCategory(category)}
+                      key={String(type.id || '')}
+                      onClick={() => toggleCategory(categoryValue as ComplaintCategory)}
                     className="px-4 py-2 rounded-lg font-semibold"
                     style={{
-                      backgroundColor: filters.category.includes(category) ? '#2AB3EE' : '#1F2022',
+                        backgroundColor: filters.category.includes(categoryValue as ComplaintCategory) ? '#2AB3EE' : '#1F2022',
                       color: '#E6E6E6',
                       border: '2px solid #E6E6E6',
                     }}
                   >
-                    {category}
+                      {typeName}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

@@ -65,16 +65,13 @@ export const complaintService = {
   },
 
   /**
-   * Update a complaint
+   * Update a complaint (with FormData for file uploads)
    */
-  async update(complaintId: number, updates: {
-    current_handler_id?: number;
-    status_id?: number;
-    remarks?: string;
-  }) {
-    const response = await api.post('update-complaint', {
-      complaint_id: complaintId,
-      ...updates,
+  async update(complaintData: FormData) {
+    const response = await api.post('update-complaint', complaintData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
     return response.data;
   },
@@ -135,7 +132,9 @@ export const complaintService = {
    */
   async getTypes() {
     const response = await api.get('all-types');
-    return response.data;
+    // API returns { status: true, message: "all Types.", types: [...] }
+    const types = response.data?.types || response.data?.payload || response.data?.data || response.data || [];
+    return Array.isArray(types) ? types : [];
   },
 
   /**
@@ -143,6 +142,16 @@ export const complaintService = {
    */
   async getPriorities() {
     const response = await api.get('all-priorities');
+    // API returns { status: true, message: "all Priorities.", priorities: [...] }
+    const priorities = response.data?.priorities || response.data?.data || response.data || [];
+    return Array.isArray(priorities) ? priorities : [];
+  },
+
+  /**
+   * Get all sort by options
+   */
+  async getSortByOptions() {
+    const response = await api.get('sort_by');
     return response.data;
   },
 };
@@ -304,14 +313,16 @@ export const settingsService = {
   },
 };
 
-// Example: DSWs Service
+// DSWs Service
 export const dswService = {
   /**
    * Get all DSWs
    */
   async getAll() {
     const response = await api.get('all-dsws');
-    return response.data;
+    // API returns { status: true, message: "all DSWs.", workers: [...] }
+    const dsws = response.data?.workers || response.data?.dsws || response.data?.data || response.data || [];
+    return Array.isArray(dsws) ? dsws : [];
   },
 };
 
@@ -326,14 +337,15 @@ export const providerService = {
   },
 };
 
-// Example: Clients Service
+// Clients Service
 export const clientService = {
   /**
    * Get all clients
    */
   async getAll() {
     const response = await api.get('all-clients');
-    return response.data;
+    const clients = response.data?.clients || response.data?.data || response.data || [];
+    return Array.isArray(clients) ? clients : [];
   },
 };
 

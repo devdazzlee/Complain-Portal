@@ -63,7 +63,7 @@ const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint => {
   };
 };
 
-export default function EditComplaintPage() {
+export default function AdminEditComplaintPage() {
   const params = useParams();
   const router = useRouter();
   const { currentUser } = useApp();
@@ -120,7 +120,7 @@ export default function EditComplaintPage() {
             const mappedComplaint = mapComplaintFromResponse(response.complaint);
             setComplaint(mappedComplaint);
             setComplaintInStore(complaintId, mappedComplaint);
-      setFormData({
+            setFormData({
               dswId: '',
               clientId: '',
               typeOfProblem: mappedComplaint.typeOfProblem as ProblemType,
@@ -235,7 +235,7 @@ export default function EditComplaintPage() {
       formDataToSend.append('status_id', '1'); // Keep as Open for now
       formDataToSend.append('priority_id', String(priorityId));
       formDataToSend.append('type_id', String(typeId));
-      formDataToSend.append('remarks', formData.remarks || `Complaint updated by ${currentUser?.name || 'provider'}`);
+      formDataToSend.append('remarks', formData.remarks || `Complaint updated by ${currentUser?.name || 'admin'}`);
       formDataToSend.append('case_start_by', String(currentUser?.id || ''));
 
       // Add file attachments if any
@@ -251,7 +251,7 @@ export default function EditComplaintPage() {
         useComplaintDetailStore.setState({ lastFetched: { ...useComplaintDetailStore.getState().lastFetched, [String(complaintId)]: null } });
         setToast({ message: response?.message || 'Complaint updated successfully!', type: 'success' });
         setTimeout(() => {
-          router.push(`/provider/complaints/${complaint.id}`);
+          router.push(`/admin/complaints/${complaint.id}`);
         }, 1500);
       } else {
         throw new Error('Failed to update complaint');
@@ -295,7 +295,7 @@ export default function EditComplaintPage() {
 
   if (loading || fetching) {
     return (
-      <Layout role="provider">
+      <Layout role="admin">
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader size="lg" />
         </div>
@@ -305,11 +305,11 @@ export default function EditComplaintPage() {
 
   if (!complaint) {
     return (
-      <Layout role="provider">
+      <Layout role="admin">
         <div className="text-center py-16">
           <p style={{ color: '#E6E6E6', fontSize: '1.5rem', marginBottom: '1.5rem' }}>Complaint not found</p>
           <button
-            onClick={() => router.push('/provider/dashboard')}
+            onClick={() => router.push('/admin/dashboard')}
             className="rounded-lg font-semibold transition-colors"
             style={{ 
               color: '#2AB3EE',
@@ -328,7 +328,7 @@ export default function EditComplaintPage() {
   }
 
   return (
-    <Layout role="provider">
+    <Layout role="admin">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-bold mb-3" style={{ color: '#E6E6E6' }}>Edit Complaint</h1>
         <div className="flex items-center gap-4 mb-8" style={{ color: '#E6E6E6', opacity: 0.8, fontSize: '1.125rem' }}>
@@ -538,27 +538,27 @@ export default function EditComplaintPage() {
           {/* Description */}
           <div>
             <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Describe What Happened *</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Please tell us what happened"
-                rows={8}
-                required
-                className="w-full rounded-lg outline-none transition resize-none placeholder:opacity-50"
-                style={{ 
-                  backgroundColor: '#1F2022', 
-                  borderColor: '#E6E6E6', 
-                  borderWidth: '2px', 
-                  borderStyle: 'solid', 
-                  color: '#E6E6E6',
-                  fontSize: '1.125rem',
-                  padding: '16px 20px',
-                  minHeight: '180px'
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
-                onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
-              />
-            </div>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Please tell us what happened"
+              rows={8}
+              required
+              className="w-full rounded-lg outline-none transition resize-none placeholder:opacity-50"
+              style={{ 
+                backgroundColor: '#1F2022', 
+                borderColor: '#E6E6E6', 
+                borderWidth: '2px', 
+                borderStyle: 'solid', 
+                color: '#E6E6E6',
+                fontSize: '1.125rem',
+                padding: '16px 20px',
+                minHeight: '180px'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
+              onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
+            />
+          </div>
 
           {/* Remarks */}
           <div>
@@ -722,3 +722,4 @@ export default function EditComplaintPage() {
     </Layout>
   );
 }
+

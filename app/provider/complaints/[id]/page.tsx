@@ -12,6 +12,7 @@ import PriorityBadge from '../../../components/PriorityBadge';
 import { complaintService } from '../../../../lib/services';
 import { Complaint, ComplaintStatus, ProblemType, Priority, FileAttachment, ComplaintTimelineItem } from '../../../types';
 import { useDashboardStore } from '../../../../lib/stores/dashboardStore';
+import { useComplaintDetailStore } from '../../../../lib/stores/complaintDetailStore';
 
 // Helper function to map complaint from API response (same as dashboard)
 const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint => {
@@ -88,6 +89,7 @@ export default function ComplaintDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { complaints: storeComplaints } = useDashboardStore();
+  const { getComplaint, setComplaint: setComplaintInStore, isStale } = useComplaintDetailStore();
   const [complaint, setComplaint] = useState<Complaint | null>(null);
   const [loading, setLoading] = useState(true);
   const [exportingPDF, setExportingPDF] = useState(false);
@@ -100,10 +102,17 @@ export default function ComplaintDetailPage() {
       try {
         setLoading(true);
         const complaintId = params.id as string;
-        
-        // First try to find in Zustand store
-        // The complaintId from URL could be numeric string (e.g., "6") or "CMP-6"
         const numericId = complaintId.replace('CMP-', '');
+        
+        // First try Zustand complaint detail store
+        const cachedComplaint = getComplaint(complaintId) || getComplaint(numericId);
+        if (cachedComplaint && !isStale(complaintId) && !isStale(numericId)) {
+          setComplaint(cachedComplaint);
+          setLoading(false);
+          return;
+        }
+        
+        // Then try dashboard store
         const foundInStore = storeComplaints.find(c => {
           const cNumericId = c.id.replace('CMP-', '');
           return c.id === complaintId || 
@@ -116,15 +125,17 @@ export default function ComplaintDetailPage() {
         
         if (foundInStore) {
           setComplaint(foundInStore);
+          setComplaintInStore(complaintId, foundInStore); // Cache in detail store
           setLoading(false);
           return;
         }
         
-        // If not in store, fetch from API
+        // If not in any store, fetch from API
         const response = await complaintService.getById(complaintId);
         if (response.complaint) {
           const mappedComplaint = mapComplaintFromResponse(response.complaint);
           setComplaint(mappedComplaint);
+          setComplaintInStore(complaintId, mappedComplaint); // Cache in detail store
         }
       } catch (error) {
         console.error('Error fetching complaint:', error);
@@ -135,7 +146,7 @@ export default function ComplaintDetailPage() {
     };
 
     fetchComplaint();
-  }, [params.id, storeComplaints]);
+  }, [params.id, storeComplaints, getComplaint, setComplaintInStore, isStale]);
 
   if (loading) {
     return (

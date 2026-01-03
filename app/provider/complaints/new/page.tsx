@@ -11,11 +11,13 @@ import {
 } from '@/components/ui/select';
 import Layout from '../../../components/Layout';
 import { useApp } from '../../../context/AppContext';
+import { complaintService, dswService, clientService } from '../../../../lib/services';
 import { ProblemType, Priority, ComplaintCategory, FileAttachment } from '../../../types';
 import Loader from '../../../components/Loader';
 import Toast from '../../../components/Toast';
 import FileGallery from '../../../components/FileGallery';
 import { VoiceRecognition } from '../../../utils/voiceRecognition';
+import { useDashboardStore } from '../../../../lib/stores/dashboardStore';
 
 const problemTypes: { type: ProblemType; icon: string; label: string }[] = [
   { type: 'Late arrival', icon: '🕐', label: 'Late arrival' },
@@ -26,46 +28,119 @@ const problemTypes: { type: ProblemType; icon: string; label: string }[] = [
 
 export default function NewComplaintPage() {
   const router = useRouter();
-  const { addComplaint, templates, getTemplateById, uploadFile, users, addTemplate } = useApp();
+  const { currentUser, templates, getTemplateById, addTemplate } = useApp();
+  const { setComplaints, isComplaintsStale } = useDashboardStore();
   const [pendingTemplateName, setPendingTemplateName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [formData, setFormData] = useState({
-    customer: '',
-    caretaker: '',
+    dswId: '',
+    clientId: '',
     typeOfProblem: '' as ProblemType | '',
     category: '' as ComplaintCategory | '',
-    priority: 'Medium' as Priority,
+    priority: 'Low' as Priority,
     description: '',
+    remarks: '',
     tags: [] as string[],
     templateId: '',
   });
+  const [dsws, setDsws] = useState<Array<{ id: number | string; name: string }>>([]);
+  const [clients, setClients] = useState<Array<{ id: number | string; name: string }>>([]);
+  const [types, setTypes] = useState<Array<Record<string, unknown>>>([]);
+  const [priorities, setPriorities] = useState<Array<Record<string, unknown>>>([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [templateSearch, setTemplateSearch] = useState('');
-  const [caretakerSearch, setCaretakerSearch] = useState('');
-  const [customerSearch, setCustomerSearch] = useState('');
+  const [dswSearch, setDswSearch] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
   const [showCustomTemplate, setShowCustomTemplate] = useState(false);
   const [customTemplateName, setCustomTemplateName] = useState('');
   const voiceRecognitionRef = useRef<VoiceRecognition | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Customer list
-  const customers = ['John Doe', 'Jane Smith', 'Robert Johnson', 'Mary Williams', 'David Brown', 'Sarah Davis', 'Michael Wilson', 'Emily Moore', 'James Taylor', 'Patricia Anderson'];
+  // Fetch DSWs, Clients, Types, Priorities on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setFetching(true);
+        const [dswsResponse, clientsResponse, typesResponse, prioritiesResponse] = await Promise.all([
+          dswService.getAll().catch(() => []),
+          clientService.getAll().catch(() => []),
+          complaintService.getTypes().catch(() => ({ data: [] })),
+          complaintService.getPriorities().catch(() => ({ data: [] })),
+        ]);
 
-  // Caretaker list
-  const caretakers = ['Lisa Adams', 'John Smith', 'Sarah Reed', 'Michael Brown', 'Emily Johnson', 'Unknown'];
+        // Map DSWs
+        const mappedDsws = Array.isArray(dswsResponse) ? dswsResponse.map((dsw: Record<string, unknown>) => ({
+          id: Number(dsw.id || 0),
+          name: String(dsw.name || dsw.first_name || dsw.username || ''),
+        })) : [];
+        setDsws(mappedDsws);
 
-  // Filter customers based on search
-  const filteredCustomers = customers.filter(customer =>
-    customer.toLowerCase().includes(customerSearch.toLowerCase())
+        // Map Clients
+        const mappedClients = Array.isArray(clientsResponse) ? clientsResponse.map((client: Record<string, unknown>) => ({
+          id: Number(client.id || 0),
+          name: String(client.name || client.first_name || client.username || ''),
+        })) : [];
+        setClients(mappedClients);
+
+        // Map Types
+        const apiTypes = typesResponse;
+        console.log('Types API Response:', typesResponse);
+        console.log('Mapped Types:', apiTypes);
+        setTypes(Array.isArray(apiTypes) ? apiTypes : []);
+
+        // Map Priorities
+        const apiPriorities = prioritiesResponse;
+        console.log('Priorities API Response:', prioritiesResponse);
+        console.log('Mapped Priorities:', apiPriorities);
+        setPriorities(Array.isArray(apiPriorities) ? apiPriorities : []);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setToast({ message: 'Failed to load form data', type: 'error' });
+      } finally {
+        setFetching(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Filter DSWs and Clients based on search
+  const filteredDsws = dsws.filter(dsw =>
+    dsw.name.toLowerCase().includes(dswSearch.toLowerCase())
   );
 
-  // Filter caretakers based on search
-  const filteredCaretakers = caretakers.filter(caretaker =>
-    caretaker.toLowerCase().includes(caretakerSearch.toLowerCase())
+  const filteredClients = clients.filter(client =>
+    client.name.toLowerCase().includes(clientSearch.toLowerCase())
   );
+
+  // Get type ID from type name
+  const getTypeId = (typeName: ProblemType): number | undefined => {
+    console.log('Looking for type:', typeName);
+    console.log('Available types:', types);
+    const type = types.find((t: Record<string, unknown>) => 
+      (t.name as string)?.toLowerCase() === typeName.toLowerCase() || 
+      (t.code as string)?.toLowerCase() === typeName.toLowerCase()
+    );
+    console.log('Found type:', type);
+    return type?.id as number | undefined;
+  };
+
+  // Get priority ID from priority name
+  const getPriorityId = (priorityName: Priority): number | undefined => {
+    console.log('Looking for priority:', priorityName);
+    console.log('Available priorities:', priorities);
+    const priority = priorities.find((p: Record<string, unknown>) => 
+      (p.label as string)?.toLowerCase() === priorityName.toLowerCase() || 
+      (p.code as string)?.toLowerCase() === priorityName.toLowerCase() ||
+      (p.name as string)?.toLowerCase() === priorityName.toLowerCase()
+    );
+    console.log('Found priority:', priority);
+    return priority?.id as number | undefined;
+  };
 
   // Filter templates based on search
   const filteredTemplates = templates.filter(template =>
@@ -154,67 +229,99 @@ export default function NewComplaintPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.typeOfProblem || !formData.description.trim()) {
+    if (!formData.dswId || !formData.clientId || !formData.typeOfProblem || !formData.description.trim()) {
       setToast({ message: 'Please fill in all required fields', type: 'error' });
       return;
     }
 
+    const typeId = getTypeId(formData.typeOfProblem);
+    const priorityId = getPriorityId(formData.priority);
+
+    if (!typeId || !priorityId) {
+      setToast({ message: 'Invalid type or priority selected', type: 'error' });
+      return;
+    }
+
     setLoading(true);
-
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    addComplaint({
-      caretaker: formData.caretaker || 'Unknown',
-      typeOfProblem: formData.typeOfProblem as ProblemType,
-      category: formData.category || undefined,
-      description: formData.description,
-      tags: formData.tags.length > 0 ? formData.tags : undefined,
-      attachments: attachments.length > 0 ? attachments : undefined,
-      templateId: formData.templateId || undefined,
-    });
-
-    setLoading(false);
-    setToast({ message: 'Complaint submitted successfully!', type: 'success' });
-    setTimeout(() => {
-      router.push('/provider/dashboard');
-    }, 1500);
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setUploading(true);
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        
-        // Validate file size (max 10MB per file)
-        if (file.size > 10 * 1024 * 1024) {
-          setToast({ message: `File ${file.name} is too large (max 10MB)`, type: 'error' });
-          continue;
-        }
+      const formDataToSend = new FormData();
+      formDataToSend.append('dsw_id', formData.dswId);
+      formDataToSend.append('client_id', formData.clientId);
+      formDataToSend.append('description', formData.description);
+      formDataToSend.append('case_start_by', String(currentUser?.id || ''));
+      formDataToSend.append('status_id', '1'); // Open
+      formDataToSend.append('priority_id', String(priorityId));
+      formDataToSend.append('type_id', String(typeId));
+      formDataToSend.append('remarks', formData.remarks || `Complaint created by ${currentUser?.name || 'provider'}`);
 
-        // Validate file type
-        const allowedTypes = ['image/', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-        if (!allowedTypes.some(type => file.type.startsWith(type))) {
-          setToast({ message: `File ${file.name} type not supported`, type: 'error' });
-          continue;
-        }
+      // Add file attachments
+      attachments.forEach((file) => {
+        formDataToSend.append('file', file);
+      });
 
-        const uploaded = await uploadFile(file);
-        setAttachments(prev => [...prev, uploaded]);
+      const response = await complaintService.add(formDataToSend);
+      
+      if (response?.status || response?.message) {
+        // Refresh complaints list
+        useDashboardStore.setState({ complaintsLastFetched: null });
+        setToast({ message: response?.message || 'Complaint submitted successfully!', type: 'success' });
+    setTimeout(() => {
+          router.push('/provider/complaints');
+    }, 1500);
+      } else {
+        throw new Error('Failed to create complaint');
       }
-    } catch {
-      setToast({ message: 'Error uploading file', type: 'error' });
+    } catch (error: any) {
+      console.error('Error creating complaint:', error);
+      setToast({ 
+        message: error?.response?.data?.message || error?.message || 'Failed to create complaint', 
+        type: 'error' 
+      });
     } finally {
-      setUploading(false);
+      setLoading(false);
     }
   };
 
-  const removeAttachment = (id: string) => {
-    setAttachments(prev => prev.filter(a => a.id !== id));
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+        
+        // Validate file size (max 10MB per file)
+    const invalidFiles = fileArray.filter(file => file.size > 10 * 1024 * 1024);
+    if (invalidFiles.length > 0) {
+      setToast({ message: `Some files are too large (max 10MB per file)`, type: 'error' });
+      return;
+        }
+
+        // Validate file type
+        const allowedTypes = [
+          'image/', 
+          'application/pdf', 
+          'application/msword', 
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'image/jpeg', // Explicitly support JPEG
+          'image/jpg',  // Explicitly support JPG  
+          'image/jpe',  // Explicitly support JPE
+          'image/png',  // Explicitly support PNG
+          'image/gif',  // Explicitly support GIF
+          'image/webp' // Explicitly support WebP
+        ];
+        console.log('File details:', fileArray.map(f => ({ name: f.name, type: f.type, size: f.size })));
+        console.log('Allowed types:', allowedTypes);
+    const invalidTypes = fileArray.filter(file => !allowedTypes.some(type => file.type.startsWith(type) || file.type === type));
+    if (invalidTypes.length > 0) {
+      console.log('Invalid files:', invalidTypes);
+      setToast({ message: `Some file types are not supported`, type: 'error' });
+      return;
+    }
+
+    setAttachments(prev => [...prev, ...fileArray]);
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleVoiceInput = () => {
@@ -241,13 +348,21 @@ export default function NewComplaintPage() {
   };
 
 
+  if (fetching) {
+    return (
+      <Layout role="provider">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader size="lg" />
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout role="provider">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-3" style={{ color: '#E6E6E6' }}>Tell us what happened</h1>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6 md:mb-8 text-base md:text-lg" style={{ color: '#E6E6E6', opacity: 0.8 }}>
-          <span>Complaint ID: {complaintId}</span>
-          <span className="hidden sm:inline">|</span>
           <span>Date: {dateStr}</span>
         </div>
 
@@ -403,87 +518,12 @@ export default function NewComplaintPage() {
             )}
             </div>
 
-          {/* Customer */}
+          {/* DSW Selection */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Customer Name</label>
-            <Select value={formData.customer || undefined} onValueChange={(value) => setFormData({ ...formData, customer: value })}>
+            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>DSW (Direct Service Worker) *</label>
+            <Select value={formData.dswId} onValueChange={(value) => setFormData({ ...formData, dswId: value })}>
               <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
-                <SelectValue placeholder="Search or select customer..." />
-              </SelectTrigger>
-              <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
-                <div
-                  className="px-3 py-2 sticky top-0 z-10"
-                  style={{ backgroundColor: '#1F2022', borderBottom: '1px solid #2A2B30' }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="relative">
-            <input
-              type="text"
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
-                      placeholder="Search customers..."
-                      className="w-full rounded-lg outline-none transition pr-10"
-                      style={{ 
-                        backgroundColor: '#0f1012', 
-                        borderColor: '#2A2B30', 
-                        borderWidth: '2px', 
-                        borderStyle: 'solid', 
-                        color: '#E6E6E6',
-                        fontSize: '0.95rem',
-                        padding: '10px 12px',
-                        minHeight: '44px'
-                      }}
-                      onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
-                      onBlur={(e) => e.target.style.borderColor = '#2A2B30'}
-                    />
-                    <svg 
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                      style={{ color: '#E6E6E6', opacity: 0.7 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </div>
-                </div>
-                {filteredCustomers.length > 0 ? (
-                  filteredCustomers.map((customer) => (
-                    <SelectItem 
-                      key={customer} 
-                      value={customer} 
-                      className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
-                      style={{
-                        border: 'none',
-                        padding: '10px 12px',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#2A2B30';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
-                    >
-                      {customer}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-customers" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
-                    No customers found matching "{customerSearch}"
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            <p className="mt-2" style={{ color: '#E6E6E6', opacity: 0.7, fontSize: '1rem' }}>Search and select the customer for this complaint</p>
-          </div>
-
-          {/* Caretaker */}
-          <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Caretaker</label>
-            <Select value={formData.caretaker || undefined} onValueChange={(value) => setFormData({ ...formData, caretaker: value })}>
-              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
-                <SelectValue placeholder="Search or select caretaker..." />
+                <SelectValue placeholder="Search or select DSW..." />
               </SelectTrigger>
               <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
                 <div
@@ -494,9 +534,9 @@ export default function NewComplaintPage() {
                   <div className="relative">
                     <input
                       type="text"
-                      value={caretakerSearch}
-                      onChange={(e) => setCaretakerSearch(e.target.value)}
-                      placeholder="Search caretakers..."
+                      value={dswSearch}
+                      onChange={(e) => setDswSearch(e.target.value)}
+                      placeholder="Search DSWs..."
                       className="w-full rounded-lg outline-none transition pr-10"
                       style={{ 
                         backgroundColor: '#0f1012', 
@@ -522,11 +562,11 @@ export default function NewComplaintPage() {
                     </svg>
                   </div>
                 </div>
-                {filteredCaretakers.length > 0 ? (
-                  filteredCaretakers.map((caretaker) => (
+                {filteredDsws.length > 0 ? (
+                  filteredDsws.map((dsw) => (
                     <SelectItem 
-                      key={caretaker} 
-                      value={caretaker} 
+                      key={dsw.id} 
+                      value={String(dsw.id)} 
                       className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
                       style={{
                         border: 'none',
@@ -540,17 +580,90 @@ export default function NewComplaintPage() {
                         e.currentTarget.style.backgroundColor = 'transparent';
                       }}
                     >
-                      {caretaker}
+                      {dsw.name}
                     </SelectItem>
                   ))
                 ) : (
-                  <SelectItem value="no-caretakers" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
-                    No caretakers found matching "{caretakerSearch}"
+                  <SelectItem value="no-dsws" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                    No DSWs found matching "{dswSearch}"
                   </SelectItem>
                 )}
               </SelectContent>
             </Select>
-            <p className="mt-2" style={{ color: '#E6E6E6', opacity: 0.7, fontSize: '1rem' }}>If you&apos;re not sure, you can leave this empty</p>
+          </div>
+
+          {/* Client Selection */}
+          <div>
+            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Client *</label>
+            <Select value={formData.clientId} onValueChange={(value) => setFormData({ ...formData, clientId: value })}>
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+                <SelectValue placeholder="Search or select client..." />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
+                <div
+                  className="px-3 py-2 sticky top-0 z-10"
+                  style={{ backgroundColor: '#1F2022', borderBottom: '1px solid #2A2B30' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      placeholder="Search clients..."
+                      className="w-full rounded-lg outline-none transition pr-10"
+                      style={{ 
+                        backgroundColor: '#0f1012', 
+                        borderColor: '#2A2B30', 
+                        borderWidth: '2px', 
+                        borderStyle: 'solid', 
+                        color: '#E6E6E6',
+                        fontSize: '0.95rem',
+                        padding: '10px 12px',
+                        minHeight: '44px'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
+                      onBlur={(e) => e.target.style.borderColor = '#2A2B30'}
+                    />
+                    <svg 
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                      style={{ color: '#E6E6E6', opacity: 0.7 }}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                </div>
+                {filteredClients.length > 0 ? (
+                  filteredClients.map((client) => (
+                    <SelectItem 
+                      key={client.id} 
+                      value={String(client.id)} 
+                      className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
+                      style={{
+                        border: 'none',
+                        padding: '10px 12px',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#2A2B30';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      {client.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-clients" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                    No clients found matching "{clientSearch}"
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Type of Problem */}
@@ -588,9 +701,71 @@ export default function NewComplaintPage() {
             </div>
           </div>
 
+          {/* Priority Selection */}
+          <div>
+            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Priority *</label>
+            <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value as Priority })}>
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+                <SelectValue placeholder="Select priority..." />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
+                {priorities.length > 0 ? (
+                  priorities.map((priority: any) => (
+                    <SelectItem 
+                      key={String(priority.id)} 
+                      value={String(priority.label || priority.code || priority.name)}
+                      className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
+                      style={{
+                        border: 'none',
+                        padding: '10px 12px',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#2A2B30';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      {String(priority.label || priority.code || priority.name)}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-priorities" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                    No priorities available
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Remarks */}
+          <div>
+            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Remarks (Optional)</label>
+            <textarea
+              value={formData.remarks}
+              onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+              placeholder="Additional remarks or notes"
+              rows={4}
+              className="w-full rounded-lg outline-none transition resize-none placeholder:opacity-50"
+              style={{ 
+                backgroundColor: '#1F2022', 
+                borderColor: '#E6E6E6', 
+                borderWidth: '2px', 
+                borderStyle: 'solid', 
+                color: '#E6E6E6',
+                fontSize: '1.125rem',
+                padding: '16px 20px',
+                minHeight: '120px'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
+              onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
+            />
+          </div>
+
           {/* Description */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Describe What Happened</label>
+            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Describe What Happened *</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -669,11 +844,34 @@ export default function NewComplaintPage() {
             <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Attach Files (Optional)</label>
             {attachments.length > 0 && (
               <div className="mb-4">
-                <FileGallery
-                  files={attachments}
-                  onDelete={removeAttachment}
-                  canDelete={true}
-                />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {attachments.map((file, index) => (
+                    <div key={index} className="relative rounded-lg p-3 hover:bg-opacity-80 transition-all" style={{ backgroundColor: '#2A2B30', border: '1px solid #4A4B50' }}>
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm truncate font-medium" style={{ color: '#E6E6E6' }} title={file.name}>{file.name}</p>
+                          <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(index)}
+                          className="ml-2 p-1 rounded hover:bg-red-500/20 transition-colors flex-shrink-0"
+                          style={{ color: '#EF4444' }}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="flex items-center text-xs" style={{ color: '#6B7280' }}>
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        {file.type || 'File'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             <div className="relative">
@@ -763,7 +961,7 @@ export default function NewComplaintPage() {
             </button>
             <button
               type="submit"
-              disabled={loading || !formData.typeOfProblem || !formData.description.trim()}
+              disabled={loading || !formData.dswId || !formData.clientId || !formData.typeOfProblem || !formData.description.trim()}
               className="w-full text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
               style={{ 
                 backgroundColor: loading ? '#2A2B30' : '#009200',
@@ -771,7 +969,7 @@ export default function NewComplaintPage() {
                 padding: '14px 24px',
                 minHeight: '56px',
               }}
-              onMouseEnter={(e) => !loading && !(!formData.typeOfProblem || !formData.description.trim()) && (e.currentTarget.style.backgroundColor = '#007700')}
+              onMouseEnter={(e) => !loading && !(!formData.dswId || !formData.clientId || !formData.typeOfProblem || !formData.description.trim()) && (e.currentTarget.style.backgroundColor = '#007700')}
               onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#009200')}
             >
               {loading ? (

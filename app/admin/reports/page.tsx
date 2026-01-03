@@ -5,10 +5,12 @@ import Layout from "../../components/Layout";
 import { complaintService } from "../../../lib/services";
 import { exportToCSV, exportToExcel } from "../../utils/export";
 import Loader from "../../components/Loader";
+import { useReportsStore } from "../../../lib/stores/reportsStore";
 
 export default function ReportsPage() {
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
+  const { reportData: cachedReportData, setReportData, isStale } = useReportsStore();
 
   // Initialize with a date range (last 3 months)
   const getInitialDateRange = () => {
@@ -23,7 +25,7 @@ export default function ReportsPage() {
   };
 
   const [dateRange, setDateRange] = useState(getInitialDateRange());
-  const [reportData, setReportData] = useState<any>(null);
+  const [reportData, setReportDataLocal] = useState<any>(cachedReportData);
   const [loading, setLoading] = useState(false);
   const [exportingCSV, setExportingCSV] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
@@ -32,6 +34,12 @@ export default function ReportsPage() {
   const generateReport = async () => {
     if (!dateRange.start || !dateRange.end) {
       setError("Please select both start and end dates");
+      return;
+    }
+
+    // Check cache first (if same date range and not stale)
+    if (cachedReportData && !isStale()) {
+      setReportDataLocal(cachedReportData);
       return;
     }
 
@@ -46,7 +54,8 @@ export default function ReportsPage() {
       
       // Transform API data to match UI expectations
       const transformedData = transformReportData(apiData);
-      setReportData(transformedData);
+      setReportDataLocal(transformedData);
+      setReportData(transformedData); // Update Zustand store
     } catch (err: any) {
       console.error('Error generating report:', err);
       setError(err?.response?.data?.message || err?.message || 'Failed to generate report');

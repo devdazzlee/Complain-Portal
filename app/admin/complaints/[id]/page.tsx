@@ -12,6 +12,7 @@ import PriorityBadge from '../../../components/PriorityBadge';
 import { complaintService } from '../../../../lib/services';
 import { Complaint, ComplaintStatus, ProblemType, Priority, FileAttachment, ComplaintTimelineItem } from '../../../types';
 import { useDashboardStore } from '../../../../lib/stores/dashboardStore';
+import { useComplaintDetailStore } from '../../../../lib/stores/complaintDetailStore';
 
 // Helper function to map complaint from API response (same as dashboard)
 const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint => {
@@ -88,6 +89,7 @@ export default function AdminComplaintDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { complaints: storeComplaints } = useDashboardStore();
+  const { getComplaint, setComplaint: setComplaintInStore, isStale } = useComplaintDetailStore();
   const [complaint, setComplaint] = useState<Complaint | null>(null);
   const [loading, setLoading] = useState(true);
   const [exportingPDF, setExportingPDF] = useState(false);
@@ -100,10 +102,17 @@ export default function AdminComplaintDetailPage() {
       try {
         setLoading(true);
         const complaintId = params.id as string;
-        
-        // First try to find in Zustand store
-        // The complaintId from URL could be numeric string (e.g., "6") or "CMP-6"
         const numericId = complaintId.replace('CMP-', '');
+        
+        // First try Zustand complaint detail store
+        const cachedComplaint = getComplaint(complaintId) || getComplaint(numericId);
+        if (cachedComplaint && !isStale(complaintId) && !isStale(numericId)) {
+          setComplaint(cachedComplaint);
+          setLoading(false);
+          return;
+        }
+        
+        // Then try dashboard store
         const foundInStore = storeComplaints.find(c => {
           const cNumericId = c.id.replace('CMP-', '');
           return c.id === complaintId || 
@@ -116,15 +125,17 @@ export default function AdminComplaintDetailPage() {
         
         if (foundInStore) {
           setComplaint(foundInStore);
+          setComplaintInStore(complaintId, foundInStore); // Cache in detail store
           setLoading(false);
           return;
         }
         
-        // If not in store, fetch from API
+        // If not in any store, fetch from API
         const response = await complaintService.getById(complaintId);
         if (response.complaint) {
           const mappedComplaint = mapComplaintFromResponse(response.complaint);
           setComplaint(mappedComplaint);
+          setComplaintInStore(complaintId, mappedComplaint); // Cache in detail store
         }
       } catch (error) {
         console.error('Error fetching complaint:', error);
@@ -135,7 +146,7 @@ export default function AdminComplaintDetailPage() {
     };
 
     fetchComplaint();
-  }, [params.id, storeComplaints]);
+  }, [params.id, storeComplaints, getComplaint, setComplaintInStore, isStale]);
 
   const handleDelete = async () => {
     try {
@@ -195,16 +206,6 @@ export default function AdminComplaintDetailPage() {
   const isInProgress = complaint.status === 'In Progress';
   const statusColor = isRefused ? 'text-red-400' : isInProgress ? 'text-yellow-400' : 'text-gray-400';
 
-  const handleDelete = async () => {
-    setDeleting(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    deleteComplaint(complaint.id);
-    setDeleting(false);
-    setToast({ message: 'Complaint deleted successfully', type: 'success' });
-    setTimeout(() => {
-      router.push('/admin/dashboard');
-    }, 1500);
-  };
 
   return (
     <Layout role="admin">
@@ -481,76 +482,93 @@ export default function AdminComplaintDetailPage() {
 
         {/* Action Buttons */}
         <div className="flex flex-col gap-3 md:gap-4 pt-4">
-          <button
-            onClick={async () => {
-              setExportingPDF(true);
-              try {
-                await new Promise(resolve => setTimeout(resolve, 500));
-                generatePDF({
-                  complaintId: complaint.complaintId,
-                  dateSubmitted: complaint.dateSubmitted,
-                  caretaker: complaint.caretaker,
-                  typeOfProblem: complaint.typeOfProblem,
-                  description: complaint.description,
-                  status: complaint.status,
-                  timeline: complaint.timeline,
-                  complianceSummary: complaint.complianceSummary,
-                  complianceStatement: complaint.complianceStatement,
-                });
-              } catch (error) {
-                console.error('PDF generation error:', error);
-              } finally {
-                setExportingPDF(false);
-              }
-            }}
-            disabled={exportingPDF}
-            className="w-full md:w-auto text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed text-base md:text-lg px-6 md:px-7 py-3.5 md:py-4"
-            style={{ 
-              backgroundColor: exportingPDF ? '#2A2B30' : '#2AB3EE',
-              minHeight: '56px',
-            }}
-            onMouseEnter={(e) => !exportingPDF && (e.currentTarget.style.backgroundColor = '#1F8FD0')}
-            onMouseLeave={(e) => !exportingPDF && (e.currentTarget.style.backgroundColor = '#2AB3EE')}
-          >
-            {exportingPDF ? (
-              <>
-                <Loader size="sm" color="#FFFFFF" />
-                Generating PDF...
-              </>
-            ) : (
-              <>
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Export Compliance PDF
-              </>
-            )}
-          </button>
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            disabled={deleting}
-            className="w-full md:w-auto text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed text-base md:text-lg px-6 md:px-7 py-3.5 md:py-4"
-            style={{ 
-              backgroundColor: deleting ? '#2A2B30' : '#FF3F3F',
-              minHeight: '56px',
-            }}
-            onMouseEnter={(e) => !deleting && (e.currentTarget.style.backgroundColor = '#CD0000')}
-            onMouseLeave={(e) => !deleting && (e.currentTarget.style.backgroundColor = '#FF3F3F')}
-          >
-            {deleting ? (
-              <>
-                <Loader size="sm" color="#FFFFFF" />
-                Deleting...
-              </>
-            ) : (
-              <>
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Delete Complaint
-              </>
-            )}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+            <button
+              onClick={() => router.push(`/admin/complaints/${params.id}/edit`)}
+              className="w-full sm:w-auto text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 text-base md:text-lg px-6 md:px-7 py-3.5 md:py-4"
+              style={{ 
+                backgroundColor: '#FF8800',
+                minHeight: '56px',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#E67700'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FF8800'}
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Complaint
+            </button>
+            <button
+              onClick={async () => {
+                setExportingPDF(true);
+                try {
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                  generatePDF({
+                    complaintId: complaint.complaintId,
+                    dateSubmitted: complaint.dateSubmitted,
+                    caretaker: complaint.caretaker,
+                    typeOfProblem: complaint.typeOfProblem,
+                    description: complaint.description,
+                    status: complaint.status,
+                    timeline: complaint.timeline,
+                    complianceSummary: complaint.complianceSummary,
+                    complianceStatement: complaint.complianceStatement,
+                  });
+                } catch (error) {
+                  console.error('PDF generation error:', error);
+                } finally {
+                  setExportingPDF(false);
+                }
+              }}
+              disabled={exportingPDF}
+              className="w-full sm:w-auto text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed text-base md:text-lg px-6 md:px-7 py-3.5 md:py-4"
+              style={{ 
+                backgroundColor: exportingPDF ? '#2A2B30' : '#2AB3EE',
+                minHeight: '56px',
+              }}
+              onMouseEnter={(e) => !exportingPDF && (e.currentTarget.style.backgroundColor = '#1F8FD0')}
+              onMouseLeave={(e) => !exportingPDF && (e.currentTarget.style.backgroundColor = '#2AB3EE')}
+            >
+              {exportingPDF ? (
+                <>
+                  <Loader size="sm" color="#FFFFFF" />
+                  Generating PDF...
+                </>
+              ) : (
+                <>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Export Compliance PDF
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={deleting}
+              className="w-full sm:w-auto text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed text-base md:text-lg px-6 md:px-7 py-3.5 md:py-4"
+              style={{ 
+                backgroundColor: deleting ? '#2A2B30' : '#FF3F3F',
+                minHeight: '56px',
+              }}
+              onMouseEnter={(e) => !deleting && (e.currentTarget.style.backgroundColor = '#CD0000')}
+              onMouseLeave={(e) => !deleting && (e.currentTarget.style.backgroundColor = '#FF3F3F')}
+            >
+              {deleting ? (
+                <>
+                  <Loader size="sm" color="#FFFFFF" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete Complaint
+                </>
+              )}
+            </button>
+          </div>
           <button
             onClick={() => router.push('/admin/dashboard')}
             className="w-full md:w-auto text-white rounded-lg font-semibold transition-colors border text-base md:text-lg px-6 md:px-7 py-3.5 md:py-4"

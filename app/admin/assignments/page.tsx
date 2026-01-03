@@ -10,16 +10,22 @@ import {
 } from '@/components/ui/select';
 import Layout from '../../components/Layout';
 import { assignmentService } from '../../../lib/services';
-import { complaintService } from '../../../lib/services';
 import { Complaint } from '../../types';
 import PriorityBadge from '../../components/PriorityBadge';
 import Loader from '../../components/Loader';
 import Toast from '../../components/Toast';
 import Pagination from '../../components/Pagination';
+import { useAssignmentStore } from '../../../lib/stores/assignmentStore';
 
 export default function AssignmentWorkflowPage() {
-  const [unassignedComplaints, setUnassignedComplaints] = useState<Complaint[]>([]);
-  const [providers, setProviders] = useState<Array<{ id: number | string; name: string; email?: string; role?: string }>>([]);
+  const {
+    unassignedComplaints,
+    providers,
+    setUnassignedComplaints,
+    setProviders,
+    isComplaintsStale,
+    isProvidersStale,
+  } = useAssignmentStore();
   const [selectedComplaint, setSelectedComplaint] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = useState('');
   const [loading, setLoading] = useState(true);
@@ -68,29 +74,52 @@ export default function AssignmentWorkflowPage() {
     };
   }, []);
 
-  // Fetch unassigned complaints and providers
+  // Fetch unassigned complaints and providers (only if stale)
   useEffect(() => {
     const fetchData = async () => {
+      const needComplaints = unassignedComplaints.length === 0 || isComplaintsStale();
+      const needProviders = providers.length === 0 || isProvidersStale();
+
+      if (!needComplaints && !needProviders) {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
-        const [unassignedData, providersData] = await Promise.all([
-          assignmentService.getUnassignedComplaints(),
-          assignmentService.getProviders(),
-        ]);
+        const promises: Promise<unknown>[] = [];
+
+        if (needComplaints) {
+          promises.push(assignmentService.getUnassignedComplaints());
+        } else {
+          promises.push(Promise.resolve([]));
+        }
+
+        if (needProviders) {
+          promises.push(assignmentService.getProviders());
+        } else {
+          promises.push(Promise.resolve([]));
+        }
+
+        const [unassignedData, providersData] = await Promise.all(promises);
 
         // Map unassigned complaints
-        const mappedComplaints = unassignedData.map(mapComplaintFromAPI);
-        setUnassignedComplaints(mappedComplaints);
+        if (needComplaints && Array.isArray(unassignedData)) {
+          const mappedComplaints = unassignedData.map(mapComplaintFromAPI);
+          setUnassignedComplaints(mappedComplaints);
+        }
 
         // Map providers
-        const mappedProviders = providersData.map((p: Record<string, unknown>) => ({
-          id: Number(p.id || 0),
-          name: String(p.first_name || p.name || p.username || '') + 
-                (p.last_name ? ` ${String(p.last_name)}` : ''),
-          email: String(p.email || ''),
-          role: String(p.role?.name || p.role || 'provider'),
-        }));
-        setProviders(mappedProviders);
+        if (needProviders && Array.isArray(providersData)) {
+          const mappedProviders = providersData.map((p: Record<string, unknown>) => ({
+            id: Number(p.id || 0),
+            name: String(p.first_name || p.name || p.username || '') + 
+                  (p.last_name ? ` ${String(p.last_name)}` : ''),
+            email: String(p.email || ''),
+            role: String(p.role?.name || p.role || 'provider'),
+          }));
+          setProviders(mappedProviders);
+        }
       } catch (error) {
         console.error('Error fetching assignment data:', error);
         setToast({ 
@@ -103,7 +132,7 @@ export default function AssignmentWorkflowPage() {
     };
 
     fetchData();
-  }, [mapComplaintFromAPI]);
+  }, [mapComplaintFromAPI, unassignedComplaints.length, providers.length, isComplaintsStale, isProvidersStale, setUnassignedComplaints, setProviders]);
 
   // Filter complaints based on search
   const filteredComplaints = useMemo(() => {
@@ -152,7 +181,8 @@ export default function AssignmentWorkflowPage() {
 
       await assignmentService.assignComplaint(complaintId, providerId, `Complaint assigned to ${provider.name}`);
 
-      // Refresh unassigned complaints
+      // Refresh unassigned complaints (force refresh by clearing cache)
+      useAssignmentStore.setState({ lastFetchedComplaints: null });
       const unassignedData = await assignmentService.getUnassignedComplaints();
       const mappedComplaints = unassignedData.map(mapComplaintFromAPI);
       setUnassignedComplaints(mappedComplaints);

@@ -6,25 +6,40 @@ import { useApp } from '../../context/AppContext';
 import Loader from '../../components/Loader';
 import Toast from '../../components/Toast';
 import { authService } from '../../../lib/auth';
+import { useProfileStore } from '../../../lib/stores/profileStore';
 
 export default function ProfilePage() {
   const { currentUser, updateUser } = useApp();
+  const { profile: cachedProfile, setProfile, updateProfile, isStale } = useProfileStore();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    dateOfBirth: '',
+    firstName: cachedProfile?.firstName || '',
+    lastName: cachedProfile?.lastName || '',
+    email: cachedProfile?.email || '',
+    phone: cachedProfile?.phone || '',
+    dateOfBirth: cachedProfile?.dateOfBirth || '',
   });
 
-  // Fetch current user data on mount - ONLY from API
+  // Fetch current user data on mount - ONLY from API (only if stale)
   useEffect(() => {
     const fetchUserData = async () => {
+      // Use cached profile if available and fresh
+      if (cachedProfile && !isStale()) {
+        setFormData({
+          firstName: cachedProfile.firstName,
+          lastName: cachedProfile.lastName,
+          email: cachedProfile.email,
+          phone: cachedProfile.phone || '',
+          dateOfBirth: cachedProfile.dateOfBirth || '',
+        });
+        setFetching(false);
+        return;
+      }
+
       try {
         setFetching(true);
         const response = await authService.getCurrentUser();
@@ -47,12 +62,24 @@ export default function ProfilePage() {
         // Get DOB - API returns format "1996-02-21" - ONLY from API
         const dob = userData.dob || '';
         
-        setFormData({
+        const profileData = {
           firstName: firstName,
           lastName: lastName || userData.last_name || '',
           email: userData.email || '',
           phone: phone,
           dateOfBirth: dob,
+        };
+        
+        setFormData(profileData);
+        
+        // Update Zustand store
+        setProfile({
+          id: Number(userData.id || 0),
+          firstName,
+          lastName: lastName || userData.last_name || '',
+          email: userData.email || '',
+          phone: phone || undefined,
+          dateOfBirth: dob || undefined,
         });
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -95,6 +122,15 @@ export default function ProfilePage() {
           email: formData.email,
         });
       }
+
+      // Update Zustand store
+      updateProfile({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        dateOfBirth: formData.dateOfBirth,
+      });
       
       setToast({ message: response?.message || 'Profile updated successfully!', type: 'success' });
     } catch (error: any) {

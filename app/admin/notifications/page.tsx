@@ -8,17 +8,31 @@ import { complaintService } from '../../../lib/services';
 import { Notification } from '../../types';
 import Pagination from '../../components/Pagination';
 import Loader from '../../components/Loader';
+import { useNotificationsStore } from '../../../lib/stores/notificationsStore';
 
 export default function AdminNotificationsPage() {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const {
+    notifications: cachedNotifications,
+    setNotifications,
+    removeNotification,
+    isStale,
+  } = useNotificationsStore();
+
+  const [notifications, setNotificationsLocal] = useState<Notification[]>(cachedNotifications);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Fetch notifications from API
+  // Fetch notifications from API (only if stale)
   const fetchNotifications = useCallback(async () => {
+    if (!isStale() && cachedNotifications.length > 0) {
+      setNotificationsLocal(cachedNotifications);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -57,14 +71,15 @@ export default function AdminNotificationsPage() {
         };
       });
       
-      setNotifications(mappedNotifications);
+      setNotificationsLocal(mappedNotifications);
+      setNotifications(mappedNotifications); // Update Zustand store
     } catch (err: unknown) {
       console.error('Error fetching notifications:', err);
       setError(err instanceof Error ? err.message : 'Failed to load notifications');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isStale, cachedNotifications.length, setNotifications]);
 
   useEffect(() => {
     fetchNotifications();
@@ -72,7 +87,7 @@ export default function AdminNotificationsPage() {
 
   const handleMarkAsRead = async (id: string) => {
     // Update local state immediately for better UX
-    setNotifications(prev => 
+    setNotificationsLocal(prev => 
       prev.map(n => n.id === id ? { ...n, isRead: true } : n)
     );
     
@@ -95,13 +110,15 @@ export default function AdminNotificationsPage() {
     const numericId = parseInt(id);
     if (isNaN(numericId)) {
       // If ID is not numeric, just remove from local state
-      setNotifications(prev => prev.filter(n => n.id !== id));
+      setNotificationsLocal(prev => prev.filter(n => n.id !== id));
+      removeNotification(id);
       return;
     }
 
     try {
       await notificationService.delete(numericId);
-      setNotifications(prev => prev.filter(n => n.id !== id));
+      setNotificationsLocal(prev => prev.filter(n => n.id !== id));
+      removeNotification(id); // Update Zustand store
     } catch (err: unknown) {
       console.error('Error deleting notification:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete notification');

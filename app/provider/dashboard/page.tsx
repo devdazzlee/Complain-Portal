@@ -46,9 +46,11 @@ export default function ProviderDashboard() {
   } = useDashboardStore();
   
   const [loading, setLoading] = useState(true);
+  const [sortingLoading, setSortingLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ComplaintStatus | "All">("All");
   const [typeFilter, setTypeFilter] = useState<ProblemType | "All">("All");
-  const [sortBy, setSortBy] = useState<"date" | "status">("date");
+  const [sortBy, setSortBy] = useState<string>("");
+  const [sortByOptions, setSortByOptions] = useState<Array<Record<string, unknown>>>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   
@@ -67,14 +69,27 @@ export default function ProviderDashboard() {
   const filteredAndSortedComplaints = useMemo(() => {
     let filtered = [...storeComplaints];
 
-    // Apply client-side sorting (API may not support sorting)
+    // Get the sort option details from sortByOptions
+    const selectedSortOption = sortByOptions.find((option: Record<string, unknown>) => {
+      const optionId = String(option.id || option.value || '');
+      return optionId === sortBy;
+    });
+
+    // Determine sort type from option (check code, value, or label)
+    const sortType = selectedSortOption 
+      ? (String(selectedSortOption.code || selectedSortOption.value || selectedSortOption.label || '')).toLowerCase()
+      : 'date'; // Default to date sorting
+
+    // Apply client-side sorting based on selected option
     filtered.sort((a, b) => {
-      if (sortBy === "date") {
-        return (
-          new Date(b.dateSubmitted).getTime() -
-          new Date(a.dateSubmitted).getTime()
-        );
-      } else {
+      // Sort by date (newest first)
+      if (sortType.includes('date') || sortType.includes('newest') || sortType.includes('oldest')) {
+        const dateA = new Date(a.dateSubmitted).getTime();
+        const dateB = new Date(b.dateSubmitted).getTime();
+        return sortType.includes('oldest') ? dateA - dateB : dateB - dateA;
+      }
+      // Sort by status
+      else if (sortType.includes('status')) {
         const statusOrder: Record<ComplaintStatus, number> = {
           Open: 1,
           "In Progress": 2,
@@ -83,10 +98,31 @@ export default function ProviderDashboard() {
         };
         return statusOrder[a.status] - statusOrder[b.status];
       }
+      // Sort by priority
+      else if (sortType.includes('priority')) {
+        const priorityOrder: Record<Priority, number> = {
+          Low: 1,
+          Medium: 2,
+          High: 3,
+          Urgent: 4,
+        };
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
+      }
+      // Sort by type
+      else if (sortType.includes('type')) {
+        return a.type.localeCompare(b.type);
+      }
+      // Default: sort by date (newest first)
+      else {
+        return (
+          new Date(b.dateSubmitted).getTime() -
+          new Date(a.dateSubmitted).getTime()
+        );
+      }
     });
 
     return filtered;
-  }, [storeComplaints, sortBy]);
+  }, [storeComplaints, sortBy, sortByOptions]);
 
   const totalPages = Math.ceil(
     filteredAndSortedComplaints.length / itemsPerPage
@@ -98,9 +134,18 @@ export default function ProviderDashboard() {
     endIndex
   );
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when filters change and show loading
   useEffect(() => {
     setCurrentPage(1);
+    // Show loading when sort/filter changes
+    if (sortBy || statusFilter !== "All" || typeFilter !== "All") {
+      setSortingLoading(true);
+      // Clear loading after a brief moment (sorting is fast but we want to show feedback)
+      const timer = setTimeout(() => {
+        setSortingLoading(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
   }, [statusFilter, typeFilter, sortBy]);
 
   // Helper function to map complaints from API response
@@ -225,10 +270,11 @@ export default function ProviderDashboard() {
         setLoading(true);
         
         // Fetch ALL data in parallel using Promise.all - best practice
-        const [statsResponse, statusesResponse, typesResponse, complaintsResponse] = await Promise.all([
+        const [statsResponse, statusesResponse, typesResponse, sortByResponse, complaintsResponse] = await Promise.all([
           dashboardService.getStats(),
           complaintService.getStatuses().catch(() => ({ data: [] })),
           complaintService.getTypes().catch(() => ({ data: [] })),
+          complaintService.getSortByOptions().catch(() => ({ data: [] })),
           complaintService.getAll().catch(() => ({ complaints: [] })),
         ]);
 
@@ -243,13 +289,36 @@ export default function ProviderDashboard() {
         });
 
         // Map statuses and types
-        const apiStatuses = statusesResponse?.payload || statusesResponse?.data || statusesResponse;
+        // Parse statuses - API returns { status: true, statuses: [...] }
+        const apiStatuses = statusesResponse?.statuses || statusesResponse?.payload || statusesResponse?.data || (Array.isArray(statusesResponse) ? statusesResponse : []);
         const statusesList = Array.isArray(apiStatuses) ? apiStatuses : [];
+        console.log('Dashboard - Parsed statuses:', statusesList);
         setStatuses(statusesList as Array<Record<string, unknown>>);
 
-        const apiTypes = typesResponse?.payload || typesResponse?.data || typesResponse;
+        // Parse types - API returns { status: true, types: [...] }
+        const apiTypes = typesResponse?.types || typesResponse?.payload || typesResponse?.data || (Array.isArray(typesResponse) ? typesResponse : []);
         const typesList = Array.isArray(apiTypes) ? apiTypes : [];
+        console.log('Dashboard - Parsed types:', typesList);
         setTypes(typesList as Array<Record<string, unknown>>);
+
+        // Parse sort by options - API returns { status: true, sort_by: [...] } or similar
+        const apiSortBy = sortByResponse?.sort_by || sortByResponse?.sortByOptions || sortByResponse?.payload || sortByResponse?.data || (Array.isArray(sortByResponse) ? sortByResponse : []);
+        const sortByList = Array.isArray(apiSortBy) ? apiSortBy : [];
+        console.log('Dashboard - Parsed sortBy:', sortByList);
+        setSortByOptions(sortByList);
+        // Set default sortBy if not set or if current value doesn't exist in options
+        if (sortByList.length > 0) {
+          const currentValueExists = sortByList.some((option: Record<string, unknown>) => {
+            const optionId = String(option.id || option.value || '');
+            return optionId === sortBy;
+          });
+          if (!sortBy || !currentValueExists) {
+            const firstSortOption = sortByList[0] as Record<string, unknown>;
+            const firstOptionId = String(firstSortOption.id || firstSortOption.value || '');
+            setSortBy(firstOptionId);
+            console.log('Dashboard - Set default sortBy to:', firstOptionId);
+          }
+        }
 
         // Map complaints from the parallel fetch
         const mappedComplaints = mapComplaintsFromResponse(complaintsResponse);
@@ -514,9 +583,10 @@ export default function ProviderDashboard() {
             </label>
             <Select
               value={statusFilter}
-              onValueChange={(value) =>
-                setStatusFilter(value as ComplaintStatus | "All")
-              }
+              onValueChange={(value) => {
+                setSortingLoading(true);
+                setStatusFilter(value as ComplaintStatus | "All");
+              }}
             >
               <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-4 py-3 min-h-[52px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
                 <SelectValue />
@@ -529,8 +599,9 @@ export default function ProviderDashboard() {
                   All Status
                 </SelectItem>
                 {storeStatuses.map((status: Record<string, unknown>) => {
-                  const statusName = (status.name as string) || (status.status_name as string) || '';
+                  const statusName = (status.label as string) || (status.name as string) || (status.status_name as string) || (status.code as string) || '';
                   const statusValue = mapStatus(statusName || String(status.id || ''));
+                  if (!statusName) return null;
                   return (
                     <SelectItem
                       key={String(status.id || status.status_id || '')}
@@ -553,9 +624,10 @@ export default function ProviderDashboard() {
             </label>
             <Select
               value={typeFilter}
-              onValueChange={(value) =>
-                setTypeFilter(value as ProblemType | "All")
-              }
+              onValueChange={(value) => {
+                setSortingLoading(true);
+                setTypeFilter(value as ProblemType | "All");
+              }}
             >
               <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-4 py-3 min-h-[52px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
                 <SelectValue />
@@ -568,11 +640,10 @@ export default function ProviderDashboard() {
                   All Types
                 </SelectItem>
                 {storeTypes.map((type: Record<string, unknown>) => {
-                  const typeName = (type.name as string) || (type.type_name as string) || '';
-                  // Map to ProblemType if it matches, otherwise use the name
-                  const typeValue = (['Late arrival', 'Behavior', 'Missed service', 'Other'].includes(typeName) 
-                    ? typeName 
-                    : 'Other') as ProblemType;
+                  const typeName = (type.name as string) || (type.type_name as string) || (type.code as string) || '';
+                  // Map to ProblemType - convert "Late Arrival" to "Late arrival" for consistency
+                  const typeValue = typeName === 'Late Arrival' ? 'Late arrival' : (typeName || 'Other') as ProblemType;
+                  if (!typeName) return null;
                   return (
                     <SelectItem
                       key={String(type.id || type.type_id || '')}
@@ -595,24 +666,36 @@ export default function ProviderDashboard() {
             </label>
             <Select
               value={sortBy}
-              onValueChange={(value) => setSortBy(value as "date" | "status")}
+              onValueChange={(value) => {
+                setSortingLoading(true);
+                setSortBy(value);
+              }}
             >
               <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-4 py-3 min-h-[52px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
-                <SelectValue />
+                <SelectValue placeholder="Select sort option" />
               </SelectTrigger>
               <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
-                <SelectItem
-                  value="date"
-                  className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]"
-                >
-                  Date (Newest First)
-                </SelectItem>
-                <SelectItem
-                  value="status"
-                  className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]"
-                >
-                  Status
-                </SelectItem>
+                {sortByOptions.length > 0 ? (
+                  sortByOptions.map((option: Record<string, unknown>) => {
+                    const optionId = String(option.id || option.value || '');
+                    const optionLabel = String(option.label || option.name || option.value || '');
+                    if (!optionLabel) return null;
+                    return (
+                      <SelectItem
+                        key={optionId}
+                        value={optionId}
+                        className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]"
+                      >
+                        {optionLabel}
+                      </SelectItem>
+                    );
+                  })
+                ) : (
+                  <>
+                    <SelectItem value="date" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Date (Newest First)</SelectItem>
+                    <SelectItem value="status" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Status</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -620,7 +703,11 @@ export default function ProviderDashboard() {
 
         {/* Mobile Card View */}
         <div className="md:hidden space-y-4">
-          {filteredAndSortedComplaints.length === 0 ? (
+          {sortingLoading ? (
+            <div className="flex items-center justify-center py-12 rounded-lg" style={{ backgroundColor: "#1F2022" }}>
+              <Loader size="lg" />
+            </div>
+          ) : filteredAndSortedComplaints.length === 0 ? (
             <div
               className="text-center py-12 rounded-lg"
               style={{ backgroundColor: "#1F2022" }}
@@ -776,7 +863,15 @@ export default function ProviderDashboard() {
               </tr>
             </thead>
             <tbody>
-              {filteredAndSortedComplaints.length === 0 ? (
+              {sortingLoading ? (
+                <tr>
+                  <td colSpan={5} className="text-center py-12">
+                    <div className="flex items-center justify-center">
+                      <Loader size="lg" />
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredAndSortedComplaints.length === 0 ? (
                 <tr>
                   <td
                     colSpan={5}

@@ -4,19 +4,130 @@ import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Layout from "../../../components/Layout";
-import { useApp } from "../../../context/AppContext";
-import { ComplaintStatus, Complaint } from "../../../types";
+import { useDashboardStore } from "../../../../lib/stores/dashboardStore";
+import { complaintService } from "../../../../lib/services";
+import { ComplaintStatus, Complaint, ProblemType, Priority, FileAttachment, ComplaintTimelineItem } from "../../../types";
 import Pagination from "../../../components/Pagination";
+import Loader from "../../../components/Loader";
 
 type CardType = "open" | "pending" | "resolved" | "refused";
 
 export default function DashboardDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { complaints } = useApp();
+  const { complaints: storeComplaints, setComplaints, isComplaintsStale } = useDashboardStore();
   const type = params.type as CardType;
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
   const itemsPerPage = 10;
+
+  // Map complaints from API response (same as dashboard)
+  const mapComplaintsFromResponse = (complaintsResponse: any): Complaint[] => {
+    const apiComplaints = complaintsResponse?.complaints || complaintsResponse?.payload || complaintsResponse?.data || complaintsResponse;
+    const complaintsList = Array.isArray(apiComplaints) ? apiComplaints : [];
+    
+    return complaintsList.map((item: Record<string, unknown>) => {
+      // Get the latest status from history array
+      const history = (item.history as Array<Record<string, unknown>>) || [];
+      const latestStatus = history.length > 0 
+        ? (history[history.length - 1].status as Record<string, unknown>)
+        : null;
+      const statusLabel = latestStatus?.label as string || "Open";
+      
+      // Map status
+      const statusStr = statusLabel?.toLowerCase() || '';
+      let mappedStatus: ComplaintStatus = 'Open';
+      if (statusStr.includes('open')) mappedStatus = 'Open';
+      else if (statusStr.includes('progress') || statusStr.includes('pending')) mappedStatus = 'In Progress';
+      else if (statusStr.includes('closed') || statusStr.includes('resolved')) mappedStatus = 'Closed';
+      else if (statusStr.includes('refused') || statusStr.includes('rejected')) mappedStatus = 'Refused';
+      
+      // Get type from type object
+      const typeObj = item.type as Record<string, unknown> || {};
+      const typeName = (typeObj.name as string) || (typeObj.code as string) || "Other";
+      
+      // Get priority from priority object
+      const priorityObj = item.priority as Record<string, unknown> || {};
+      const priorityLabel = (priorityObj.label as string) || "Medium";
+      
+      // Get files/attachments
+      const files = (item.files as Array<Record<string, unknown>>) || [];
+      const attachments: FileAttachment[] = files.map((file: Record<string, unknown>) => ({
+        id: String(file.id || ''),
+        name: (file.file_name as string) || '',
+        url: (file.url as string) || '',
+        type: (file.type as string) || 'image',
+        size: 0,
+        uploadedBy: '',
+        uploadedAt: new Date().toISOString(),
+      }));
+      
+      // Map timeline from history
+      const timeline: ComplaintTimelineItem[] = history.map((hist: Record<string, unknown>) => {
+        const statusObj = hist.status as Record<string, unknown> || {};
+        const statusLabel = statusObj.label as string || 'Unknown';
+        const statusCode = statusObj.code as string || '';
+        return {
+          status: statusLabel,
+          date: new Date().toISOString(),
+          description: (hist["Handler Remarks"] as string) || '',
+          isCompleted: statusCode === 'closed',
+          isRefused: statusCode === 'refused',
+          userName: (hist["Case Handle By"] as string) || undefined,
+        };
+      });
+      
+      // Get dates from API
+      const createdAt = item.created_at as string || item.createdAt as string || '';
+      const updatedAt = item.updated_at as string || item.updatedAt as string || '';
+      const dateSubmitted = createdAt 
+        ? new Date(createdAt).toLocaleDateString() 
+        : new Date().toLocaleDateString();
+      const lastUpdate = updatedAt 
+        ? new Date(updatedAt).toLocaleDateString() 
+        : (history.length > 0 ? new Date().toLocaleDateString() : dateSubmitted);
+
+      return {
+        id: String(item.id || Date.now()),
+        complaintId: `CMP-${item.id}`,
+        caretaker: String(item.Complainant || item.caretaker_name || item.client_name || "Unknown"),
+        typeOfProblem: (typeName === "Late Arrival" ? "Late arrival" : typeName) as ProblemType,
+        description: String(item.description || ""),
+        dateSubmitted: dateSubmitted,
+        lastUpdate: lastUpdate,
+        status: mappedStatus,
+        priority: priorityLabel as Priority,
+        category: undefined,
+        tags: [],
+        attachments: attachments,
+        timeline: timeline,
+      };
+    });
+  };
+
+  // Fetch complaints from API if stale or not available
+  useEffect(() => {
+    const fetchComplaints = async () => {
+      try {
+        if (isComplaintsStale() || storeComplaints.length === 0) {
+          setLoading(true);
+          const response = await complaintService.getAll();
+          const mappedComplaints = mapComplaintsFromResponse(response);
+          setComplaints(mappedComplaints);
+        }
+      } catch (error) {
+        console.error('Error fetching complaints:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchComplaints();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Use store complaints
+  const complaints = storeComplaints || [];
 
   const getFilteredComplaints = (cardType: CardType): Complaint[] => {
     const now = new Date();
@@ -112,6 +223,16 @@ export default function DashboardDetailPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [type]);
+
+  if (loading) {
+    return (
+      <Layout role="provider">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader size="lg" />
+        </div>
+      </Layout>
+    );
+  }
 
   const getStatusBadge = (status: ComplaintStatus) => {
     if (status === "In Progress") {
