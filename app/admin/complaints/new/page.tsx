@@ -56,6 +56,12 @@ export default function NewComplaintPage() {
   const { data: clients = [], isLoading: clientsLoading, error: clientsError } = useClients();
   const { data: types = [], isLoading: typesLoading, error: typesError } = useTypes();
   const { data: priorities = [], isLoading: prioritiesLoading, error: prioritiesError } = usePriorities();
+  const addTypeMutation = useAddType();
+  
+  // State for custom type modal
+  const [showAddTypeModal, setShowAddTypeModal] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
+  const [addingType, setAddingType] = useState(false);
 
   // Show toast if any data fails to load (non-blocking)
   useEffect(() => {
@@ -103,6 +109,29 @@ export default function NewComplaintPage() {
       (p.code as string)?.toLowerCase() === priorityName.toLowerCase()
     );
     return priority?.id as number | undefined;
+  };
+
+  // Handle adding custom type
+  const handleAddType = async () => {
+    if (!newTypeName.trim()) {
+      setToast({ message: 'Please enter a type name', type: 'error' });
+      return;
+    }
+
+    setAddingType(true);
+    try {
+      await addTypeMutation.mutateAsync(newTypeName.trim());
+      setToast({ message: 'Type added successfully!', type: 'success' });
+      setShowAddTypeModal(false);
+      setNewTypeName('');
+    } catch (error: any) {
+      setToast({ 
+        message: error?.response?.data?.message || error?.message || 'Failed to add type', 
+        type: 'error' 
+      });
+    } finally {
+      setAddingType(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -354,7 +383,23 @@ export default function NewComplaintPage() {
 
           {/* Type of Problem */}
           <div>
-            <label className="block mb-4" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Choose one of the options *</label>
+            <div className="flex items-center justify-between mb-4">
+              <label className="block" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Choose one of the options *</label>
+              <button
+                type="button"
+                onClick={() => setShowAddTypeModal(true)}
+                className="px-3 py-1.5 rounded text-sm font-medium transition-colors"
+                style={{ 
+                  backgroundColor: '#2AB3EE', 
+                  color: '#E6E6E6',
+                  border: '1px solid #2AB3EE'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1a9bd4'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2AB3EE'}
+              >
+                + Add Custom Type
+              </button>
+            </div>
             {typesLoading ? (
               <div className="text-center py-8">
                 <p style={{ color: '#E6E6E6', opacity: 0.7 }}>Loading types...</p>
@@ -404,6 +449,81 @@ export default function NewComplaintPage() {
               </div>
             )}
           </div>
+
+          {/* Add Custom Type Modal */}
+          {showAddTypeModal && (
+            <div 
+              className="fixed inset-0 flex items-center justify-center z-50"
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+              onClick={() => !addingType && setShowAddTypeModal(false)}
+            >
+              <div 
+                className="rounded-lg p-6 md:p-8 max-w-md w-full mx-4"
+                style={{ backgroundColor: '#2A2B30', border: '2px solid #E6E6E6' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 className="text-2xl font-bold mb-4" style={{ color: '#E6E6E6' }}>Add Custom Type</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block mb-2" style={{ color: '#E6E6E6', fontSize: '1rem', fontWeight: 500 }}>
+                      Type Name
+                    </label>
+                    <input
+                      type="text"
+                      value={newTypeName}
+                      onChange={(e) => setNewTypeName(e.target.value)}
+                      placeholder="Enter type name"
+                      className="w-full rounded-lg p-3"
+                      style={{
+                        backgroundColor: '#1F2022',
+                        border: '2px solid #E6E6E6',
+                        color: '#E6E6E6',
+                        fontSize: '1rem',
+                      }}
+                      disabled={addingType}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newTypeName.trim() && !addingType) {
+                          handleAddType();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddTypeModal(false);
+                        setNewTypeName('');
+                      }}
+                      disabled={addingType}
+                      className="px-4 py-2 rounded font-semibold transition-colors"
+                      style={{
+                        backgroundColor: '#2A2B30',
+                        color: '#E6E6E6',
+                        border: '2px solid #E6E6E6',
+                        opacity: addingType ? 0.5 : 1,
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddType}
+                      disabled={!newTypeName.trim() || addingType}
+                      className="px-4 py-2 rounded font-semibold transition-colors"
+                      style={{
+                        backgroundColor: (!newTypeName.trim() || addingType) ? '#2A2B30' : '#2AB3EE',
+                        color: '#E6E6E6',
+                        opacity: (!newTypeName.trim() || addingType) ? 0.5 : 1,
+                      }}
+                    >
+                      {addingType ? 'Adding...' : 'Add Type'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Priority */}
           <div>

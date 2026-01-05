@@ -54,6 +54,22 @@ export default function AssignmentWorkflowPage() {
   const [providerSearch, setProviderSearch] = useState('');
   const itemsPerPage = 10;
 
+  // Helper function to safely format dates
+  const formatDate = useCallback((dateValue: unknown): string => {
+    if (!dateValue) return new Date().toLocaleDateString();
+    
+    const dateStr = String(dateValue);
+    if (!dateStr || dateStr.trim() === '') return new Date().toLocaleDateString();
+    
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      // If date is invalid, try to parse it differently or return current date
+      return new Date().toLocaleDateString();
+    }
+    
+    return date.toLocaleDateString();
+  }, []);
+
   // Map API complaint to Complaint interface
   const mapComplaintFromAPI = useCallback((apiComplaint: Record<string, unknown>): Complaint & { complaintAgainst?: string } => {
     const history = apiComplaint.history as Array<Record<string, unknown>> | undefined;
@@ -67,6 +83,9 @@ export default function AssignmentWorkflowPage() {
     const complainant = apiComplaint['Complainant'] || apiComplaint.Complainant || apiComplaint.complainant || '';
     const complaintAgainst = apiComplaint['Complaint Against'] || apiComplaint['Complaint Against'] || apiComplaint.complaint_against || '';
     
+    // Try to get date from various possible fields
+    const dateValue = latestHistory?.created_at || latestHistory?.createdAt || apiComplaint.created_at || apiComplaint.createdAt || apiComplaint.date || null;
+    
     return {
       id: String(apiComplaint.id || ''),
       complaintId: `CMP-${apiComplaint.id || ''}`,
@@ -76,7 +95,7 @@ export default function AssignmentWorkflowPage() {
       description: String(apiComplaint.description || ''),
       status: String(status?.label || status?.code || 'Open'),
       priority: String(priority?.label || priority?.code || 'Low') as 'Low' | 'Medium' | 'High' | 'Urgent',
-      dateSubmitted: latestHistory ? new Date(String(latestHistory.created_at || '')).toLocaleDateString() : new Date().toLocaleDateString(),
+      dateSubmitted: formatDate(dateValue),
       assignedTo: String(latestHistory?.['Case Handle By'] || ''),
       attachments: files?.map((f: Record<string, unknown>) => ({
         id: String(f.id || ''),
@@ -92,10 +111,10 @@ export default function AssignmentWorkflowPage() {
         status: String(h.status?.label || h.status?.code || ''),
         handler: String(h['Case Handle By'] || ''),
         remarks: String(h['Handler Remarks'] || ''),
-        date: new Date().toISOString(),
+        date: formatDate(h.created_at || h.createdAt || h.date) || new Date().toISOString(),
       })) || [],
     };
-  }, []);
+  }, [formatDate]);
 
   // Map assigned complaints from API data (for the list section)
   // This uses data from /assigned-to-other-complaints API
