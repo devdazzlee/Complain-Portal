@@ -7,7 +7,7 @@ import { useApp } from '../../../../context/AppContext';
 import { complaintService } from '../../../../../lib/services';
 import { useDashboardStore } from '../../../../../lib/stores/dashboardStore';
 import { useComplaintDetailStore } from '../../../../../lib/stores/complaintDetailStore';
-import { ProblemType, Priority, Complaint } from '../../../../types';
+import { ProblemType, Priority, Complaint, ComplaintStatus } from '../../../../types';
 import Loader from '../../../../components/Loader';
 import Toast from '../../../../components/Toast';
 import { useComplaint, useDsws, useClients, useTypes, usePriorities, useUpdateComplaint } from '../../../../../lib/hooks';
@@ -39,11 +39,12 @@ const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint => {
     id: String(item.id || ''),
     complaintId: `CMP-${item.id || ''}`,
     caretaker: String(item['Complainant'] || item.complainant || ''),
-    typeOfProblem: String(type?.name || type?.code || ''),
+    typeOfProblem: String(type?.name || type?.code || '') as ProblemType,
     description: String(item.description || ''),
-    status: String(status?.label || status?.code || 'Open'),
+    status: String(status?.label || status?.code || 'Open') as ComplaintStatus,
     priority: String(priority?.label || priority?.code || 'Low') as Priority,
     dateSubmitted: latestHistory ? new Date(String(latestHistory.created_at || '')).toLocaleDateString() : new Date().toLocaleDateString(),
+    lastUpdate: latestHistory ? new Date(String(latestHistory.updated_at || latestHistory.created_at || '')).toLocaleDateString() : new Date().toLocaleDateString(),
     assignedTo: String(latestHistory?.['Case Handle By'] || ''),
     attachments: files?.map((f: Record<string, unknown>) => ({
       id: String(f.id || ''),
@@ -54,13 +55,18 @@ const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint => {
       uploadedBy: '',
       uploadedAt: new Date().toISOString(),
     })) || [],
-    timeline: history?.map((h: Record<string, unknown>, index: number) => ({
-      id: String(index),
-      status: String(h.status?.label || h.status?.code || ''),
-      handler: String(h['Case Handle By'] || ''),
-      remarks: String(h['Handler Remarks'] || ''),
-      date: new Date().toISOString(),
-    })) || [],
+    timeline: history?.map((h: Record<string, unknown>, index: number) => {
+      const statusObj = h.status as Record<string, unknown> | undefined;
+      const statusCode = String(statusObj?.code || '').toLowerCase();
+      return {
+        date: String(h.created_at || h.createdAt || h.date || new Date().toISOString()),
+        status: String(statusObj?.label || statusObj?.code || ''),
+        description: String(h['Handler Remarks'] || h.remarks || ''),
+        isCompleted: statusCode === 'closed',
+        isRefused: statusCode === 'refused',
+        userName: String(h['Case Handle By'] || h.handler || ''),
+      };
+    }) || [],
   };
 };
 
@@ -101,36 +107,51 @@ export default function EditComplaintPage() {
       const mappedComplaint = mapComplaintFromResponse(complaintData as any);
       setComplaint(mappedComplaint);
       
-      // Extract DSW and Client IDs by matching names
+      // Extract DSW and Client IDs directly from API response
       const rawData = (complaintData as any)?.rawData || complaintData;
-      const complainantName = String(rawData?.['Complainant'] || rawData?.complainant || mappedComplaint.caretaker || '');
-      const complaintAgainst = String(rawData?.['Complaint Against'] || rawData?.complaint_against || '');
       
-      // Find matching DSW ID by name (from "Complaint Against" field)
+      // Try to get IDs directly from API response (check multiple possible field names)
       let foundDswId = '';
-      if (complaintAgainst && dsws.length > 0) {
-        const dswMatch = dsws.find(dsw => {
-          const dswName = dsw.name.toLowerCase();
-          const againstName = complaintAgainst.toLowerCase();
-          // Match if the name contains the DSW name or vice versa
-          return againstName.includes(dswName) || dswName.includes(againstName.split(' - ')[0]);
-        });
-        if (dswMatch) {
-          foundDswId = String(dswMatch.id);
+      if (rawData?.dsw_id) {
+        foundDswId = String(rawData.dsw_id);
+      } else if (rawData?.dswId) {
+        foundDswId = String(rawData.dswId);
+      } else if (rawData?.dsw?.id) {
+        foundDswId = String(rawData.dsw.id);
+      } else {
+        // Fall back to name matching if ID not available
+        const complaintAgainst = String(rawData?.['Complaint Against'] || rawData?.complaint_against || '');
+        if (complaintAgainst && dsws.length > 0) {
+          const dswMatch = dsws.find(dsw => {
+            const dswName = dsw.name.toLowerCase();
+            const againstName = complaintAgainst.toLowerCase();
+            return againstName.includes(dswName) || dswName.includes(againstName.split(' - ')[0]);
+          });
+          if (dswMatch) {
+            foundDswId = String(dswMatch.id);
+          }
         }
       }
       
-      // Find matching Client ID by name (from "Complainant" field)
       let foundClientId = '';
-      if (complainantName && clients.length > 0) {
-        const clientMatch = clients.find(client => {
-          const clientName = client.name.toLowerCase();
-          const complainant = complainantName.toLowerCase();
-          // Match if the name contains the client name or vice versa
-          return complainant.includes(clientName) || clientName.includes(complainant.split(' - ')[0]);
-        });
-        if (clientMatch) {
-          foundClientId = String(clientMatch.id);
+      if (rawData?.client_id) {
+        foundClientId = String(rawData.client_id);
+      } else if (rawData?.clientId) {
+        foundClientId = String(rawData.clientId);
+      } else if (rawData?.client?.id) {
+        foundClientId = String(rawData.client.id);
+      } else {
+        // Fall back to name matching if ID not available
+        const complainantName = String(rawData?.['Complainant'] || rawData?.complainant || mappedComplaint.caretaker || '');
+        if (complainantName && clients.length > 0) {
+          const clientMatch = clients.find(client => {
+            const clientName = client.name.toLowerCase();
+            const complainant = complainantName.toLowerCase();
+            return complainant.includes(clientName) || clientName.includes(complainant.split(' - ')[0]);
+          });
+          if (clientMatch) {
+            foundClientId = String(clientMatch.id);
+          }
         }
       }
       
@@ -151,7 +172,7 @@ export default function EditComplaintPage() {
               typeOfProblem: mappedComplaint.typeOfProblem as ProblemType,
               priority: mappedComplaint.priority,
               description: mappedComplaint.description,
-        remarks: mappedComplaint.timeline?.[0]?.remarks || '',
+        remarks: mappedComplaint.timeline?.[0]?.description || '',
       });
     }
   }, [complaintData, dsws, clients, types, priorities]);

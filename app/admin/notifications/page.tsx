@@ -23,10 +23,70 @@ export default function AdminNotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const itemsPerPage = 10;
 
-  // Fetch notifications from API (only if stale)
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch notifications from API (only if stale or search query changed)
   const fetchNotifications = useCallback(async () => {
+    // If searching, always fetch from API
+    if (debouncedSearchQuery.trim()) {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await notificationService.getAll(debouncedSearchQuery.trim());
+        
+        // Map API response to Notification interface
+        const apiNotifications = response?.complaints || response?.notifications || response?.data || response || [];
+        const notificationsList = Array.isArray(apiNotifications) ? apiNotifications : [];
+        
+        const mappedNotifications: Notification[] = notificationsList.map((n: Record<string, unknown>) => {
+          const title = String(n.title || '');
+          const body = String(n.body || n.message || '');
+          const fullText = `${title} ${body}`.toLowerCase();
+          
+          const isComplaintRelated = /complaint|complaints/.test(fullText);
+          
+          return {
+            id: String(n.id || n.notification_id || Date.now()),
+            message: body || title,
+            complaintId: n.complaint_id ? String(n.complaint_id) : (isComplaintRelated ? 'related' : undefined),
+            date: n.created_at 
+              ? new Date(String(n.created_at)).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              : new Date().toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                }),
+            isRead: Boolean(n.is_read || n.read_at || false),
+            type: (n.type as 'email' | 'sms' | 'in-app') || 'in-app',
+          };
+        });
+        
+        setNotificationsLocal(mappedNotifications);
+        setLoading(false);
+        return;
+      } catch (err: unknown) {
+        console.error('Error fetching notifications:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load notifications');
+        setLoading(false);
+        return;
+      }
+    }
+
+    // If not searching and cache is fresh, use cache
     if (!isStale() && cachedNotifications.length > 0) {
       setNotificationsLocal(cachedNotifications);
       setLoading(false);
@@ -79,7 +139,7 @@ export default function AdminNotificationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [isStale, cachedNotifications.length, setNotifications]);
+  }, [isStale, cachedNotifications.length, setNotifications, debouncedSearchQuery]);
 
   useEffect(() => {
     fetchNotifications();
@@ -99,7 +159,7 @@ export default function AdminNotificationsPage() {
       } catch (err) {
         console.error('Error marking notification as read:', err);
         // Revert on error
-        setNotifications(prev => 
+        setNotificationsLocal((prev: Notification[]) => 
           prev.map(n => n.id === id ? { ...n, isRead: false } : n)
         );
       }
@@ -162,16 +222,6 @@ export default function AdminNotificationsPage() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedNotifications = notifications.slice(startIndex, endIndex);
 
-  if (loading) {
-    return (
-      <Layout role="admin">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Loader />
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout role="admin">
       <div className="max-w-4xl mx-auto">
@@ -184,18 +234,45 @@ export default function AdminNotificationsPage() {
 
         <h2 className="text-2xl font-semibold mb-6" style={{ color: '#E6E6E6' }}>Recent Notifications</h2>
 
+        {/* Search Input */}
+        <div className="mb-6">
+          <input
+            type="text"
+            placeholder="Search notifications by title..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1); // Reset to first page on search
+            }}
+            className="w-full px-4 py-3 rounded-lg text-base md:text-lg"
+            style={{ 
+              backgroundColor: '#1F2022', 
+              border: '2px solid #E6E6E6', 
+              color: '#E6E6E6',
+              minHeight: '52px'
+            }}
+            onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
+            onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
+          />
+        </div>
+
         {error && (
           <div className="rounded-lg p-4 mb-4" style={{ backgroundColor: '#2A2B30', borderLeft: '4px solid #FF3F3F' }}>
             <p style={{ color: '#E6E6E6' }}>{error}</p>
           </div>
         )}
 
-        <div className="space-y-3">
-          {notifications.length === 0 ? (
-            <div className="rounded-lg p-12 text-center" style={{ backgroundColor: '#2A2B30' }}>
-              <p style={{ color: '#E6E6E6', fontSize: '1.25rem' }}>No notifications yet</p>
-            </div>
-          ) : (
+        {loading ? (
+          <div className="flex items-center justify-center min-h-[400px]">
+            <Loader />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {notifications.length === 0 ? (
+              <div className="rounded-lg p-12 text-center" style={{ backgroundColor: '#2A2B30' }}>
+                <p style={{ color: '#E6E6E6', fontSize: '1.25rem' }}>No notifications yet</p>
+              </div>
+            ) : (
             paginatedNotifications.map((notification) => (
               <div
                 key={notification.id}
@@ -256,11 +333,12 @@ export default function AdminNotificationsPage() {
                 </div>
               </div>
             ))
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Pagination */}
-        {notifications.length > 0 && (
+        {!loading && notifications.length > 0 && (
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}

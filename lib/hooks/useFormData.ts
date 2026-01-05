@@ -11,11 +11,11 @@ export const formDataKeys = {
 };
 
 // Hook to get DSWs
-export function useDsws() {
+export function useDsws(title?: string) {
   return useQuery({
-    queryKey: formDataKeys.dsws(),
+    queryKey: [...formDataKeys.dsws(), title],
     queryFn: async () => {
-      const response = await dswService.getAll();
+      const response = await dswService.getAll(title);
       const dswsList = Array.isArray(response) ? response : [];
       return dswsList.map((dsw: Record<string, unknown>) => ({
         id: Number(dsw.id || 0),
@@ -30,11 +30,11 @@ export function useDsws() {
 }
 
 // Hook to get Clients
-export function useClients() {
+export function useClients(title?: string) {
   return useQuery({
-    queryKey: formDataKeys.clients(),
+    queryKey: [...formDataKeys.clients(), title],
     queryFn: async () => {
-      const response = await clientService.getAll();
+      const response = await clientService.getAll(title);
       const clientsList = Array.isArray(response) ? response : [];
       return clientsList.map((client: Record<string, unknown>) => ({
         id: Number(client.id || 0),

@@ -1898,6 +1898,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const user: User = {
         id: payload.id.toString(),
         email: payload.email || username,
+        password: '', // Password not stored after login for security
         name: payload.first_name + (payload.last_name ? ` ${payload.last_name}` : '') || payload.username || username,
         role: payload.role === 'admin' ? 'admin' : 'provider', // Only admin or provider
       };

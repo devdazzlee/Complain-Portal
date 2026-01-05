@@ -46,7 +46,3 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     return Date.now() - lastFetched > CACHE_DURATION;
   },
 }));
-
-
-
-

@@ -8,16 +8,16 @@ export const notificationKeys = {
 };
 
 // Hook to get all notifications
-export function useNotifications() {
+export function useNotifications(title?: string) {
   return useQuery({
-    queryKey: notificationKeys.lists(),
+    queryKey: [...notificationKeys.lists(), title],
     queryFn: async () => {
-      const response = await notificationService.getAll();
+      const response = await notificationService.getAll(title);
       const apiNotifications = response?.notifications || response?.payload || response?.data || response;
       return Array.isArray(apiNotifications) ? apiNotifications : [];
     },
     staleTime: 1 * 60 * 1000, // 1 minute - notifications change frequently
-    refetchInterval: 30 * 1000, // Refetch every 30 seconds for real-time updates
+    refetchInterval: title ? undefined : 30 * 1000, // Only refetch automatically if not searching
   });
 }
 

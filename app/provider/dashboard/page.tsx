@@ -151,7 +151,7 @@ export default function ProviderDashboard() {
       }
       // Sort by type
       else if (sortType.includes('type')) {
-        return a.type.localeCompare(b.type);
+        return a.typeOfProblem.localeCompare(b.typeOfProblem);
       }
       // Default: sort by date (newest first)
       else {
@@ -564,7 +564,7 @@ export default function ProviderDashboard() {
               style={{ backgroundColor: "#1F2022" }}
             >
               <p style={{ color: "#E6E6E6", fontSize: "1.25rem" }}>
-                {complaints.length === 0
+                {allComplaints.length === 0
                   ? "No complaints yet. Create your first complaint!"
                   : "No complaints match your filters."}
               </p>
@@ -729,7 +729,7 @@ export default function ProviderDashboard() {
                     className="text-center py-12"
                     style={{ color: "#E6E6E6", fontSize: "1.25rem" }}
                   >
-                    {complaints.length === 0
+                    {allComplaints.length === 0
                       ? "No complaints yet. Create your first complaint!"
                       : "No complaints match your filters."}
                   </td>

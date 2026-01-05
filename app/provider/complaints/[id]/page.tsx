@@ -286,6 +286,10 @@ export default function ComplaintDetailPage() {
                   <p style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>{complaint.caretaker}</p>
                 </div>
                 <div>
+                  <p className="font-semibold mb-1" style={{ color: '#E6E6E6', fontSize: '1rem', opacity: 0.7 }}>Priority</p>
+                  <p style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>{complaint.priority}</p>
+                </div>
+                <div>
                   <p className="font-semibold mb-1" style={{ color: '#E6E6E6', fontSize: '1rem', opacity: 0.7 }}>Type of Problem</p>
                   <p style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>{complaint.typeOfProblem}</p>
                 </div>
@@ -304,6 +308,7 @@ export default function ComplaintDetailPage() {
                 <tr style={{ borderBottomColor: '#E6E6E6', borderWidth: '2px' }} className="border-b">
                   <th className="text-left py-4 px-4 font-semibold whitespace-nowrap" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>Date Submitted</th>
                   <th className="text-left py-4 px-4 font-semibold whitespace-nowrap" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>Caretaker</th>
+                  <th className="text-left py-4 px-4 font-semibold whitespace-nowrap" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>Priority</th>
                   <th className="text-left py-4 px-4 font-semibold whitespace-nowrap" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>Type of Problem</th>
                   <th className="text-left py-4 px-4 font-semibold" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>Description</th>
                 </tr>
@@ -312,6 +317,7 @@ export default function ComplaintDetailPage() {
                 <tr>
                   <td className="py-5 px-4 whitespace-nowrap" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>{complaint.dateSubmitted}</td>
                   <td className="py-5 px-4 whitespace-nowrap" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>{complaint.caretaker}</td>
+                  <td className="py-5 px-4 whitespace-nowrap" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>{complaint.priority}</td>
                   <td className="py-5 px-4 whitespace-nowrap" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>{complaint.typeOfProblem}</td>
                   <td className="py-5 px-4" style={{ color: '#E6E6E6', fontSize: '1.125rem', wordBreak: 'break-word' }}>{complaint.description}</td>
                 </tr>

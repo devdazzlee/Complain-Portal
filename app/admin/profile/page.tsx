@@ -101,16 +101,16 @@ export default function AdminProfilePage() {
       // Prepare API payload
       const payload: {
         first_name?: string;
-        last_name?: string | null;
-        email?: string | null;
+        last_name?: string;
+        email?: string;
         phone?: string;
-        dob?: string | null;
+        dob?: string;
       } = {
         first_name: formData.firstName,
-        last_name: formData.lastName || null,
-        email: formData.email || null,
-        phone: formData.phone,
-        dob: formData.dateOfBirth || null,
+        ...(formData.lastName && { last_name: formData.lastName }),
+        ...(formData.email && { email: formData.email }),
+        ...(formData.phone && { phone: formData.phone }),
+        ...(formData.dateOfBirth && { dob: formData.dateOfBirth }),
       };
 
       const response = await authService.updateProfile(payload);

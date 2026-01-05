@@ -20,9 +20,11 @@ import api from './api';
 export const complaintService = {
   /**
    * Get all complaints
+   * @param title - Optional search query parameter for filtering by title
    */
-  async getAll() {
-    const response = await api.get('all-complaints');
+  async getAll(title?: string) {
+    const params = title ? { title } : {};
+    const response = await api.get('all-complaints', { params });
     return response.data;
   },
 
@@ -169,9 +171,11 @@ export const complaintService = {
 export const notificationService = {
   /**
    * Get all notifications
+   * @param title - Optional search query parameter for filtering by title
    */
-  async getAll() {
-    const response = await api.get('all-notifications');
+  async getAll(title?: string) {
+    const params = title ? { title } : {};
+    const response = await api.get('all-notifications', { params });
     return response.data;
   },
 
@@ -326,9 +330,11 @@ export const settingsService = {
 export const dswService = {
   /**
    * Get all DSWs
+   * @param title - Optional search query parameter for filtering by title
    */
-  async getAll() {
-    const response = await api.get('all-dsws');
+  async getAll(title?: string) {
+    const params = title ? { title } : {};
+    const response = await api.get('all-dsws', { params });
     // API returns { status: true, message: "all DSWs.", workers: [...] }
     const dsws = response.data?.workers || response.data?.dsws || response.data?.data || response.data || [];
     return Array.isArray(dsws) ? dsws : [];
@@ -350,9 +356,11 @@ export const providerService = {
 export const clientService = {
   /**
    * Get all clients
+   * @param title - Optional search query parameter for filtering by title
    */
-  async getAll() {
-    const response = await api.get('all-clients');
+  async getAll(title?: string) {
+    const params = title ? { title } : {};
+    const response = await api.get('all-clients', { params });
     const clients = response.data?.clients || response.data?.data || response.data || [];
     return Array.isArray(clients) ? clients : [];
   },

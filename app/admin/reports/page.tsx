@@ -105,17 +105,20 @@ export default function ReportsPage() {
     });
     
     // Calculate average response time (placeholder - adjust based on actual API data)
-    const averageResponseTime = reportData?.average_response_time || apiData?.average_response_time || 0;
-    const averageResolutionTime = reportData?.average_resolution_time || apiData?.average_resolution_time || 0;
+    const avgResponse = reportData?.average_response_time || apiData?.average_response_time || 0;
+    const avgResolution = reportData?.average_resolution_time || apiData?.average_resolution_time || 0;
+    
+    // Calculate resolved count from status counts (look for "Resolved" or "resolved" status)
+    const resolvedCount = complaintsByStatus['Resolved'] || complaintsByStatus['resolved'] || 0;
     
     return {
       totalComplaints,
+      resolved: resolvedCount,
+      avgResponse: avgResponse,
+      avgResolution: avgResolution,
       complaintsByStatus: complaintsByStatus,
       complaintsByCategory: complaintsByCategory,
       complaintsByPriority: complaintsByPriority,
-      averageResponseTime: averageResponseTime,
-      averageResolutionTime: averageResolutionTime,
-      rawComplaints: [], // API doesn't return individual complaints, only aggregated data
     };
   };
 

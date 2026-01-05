@@ -34,9 +34,8 @@ const getTypeIcon = (code: string, name: string): string => {
 
 export default function NewComplaintPage() {
   const router = useRouter();
-  const { currentUser, templates, getTemplateById, addTemplate } = useApp();
+  const { currentUser } = useApp();
   const { setComplaints, isComplaintsStale } = useDashboardStore();
-  const [pendingTemplateName, setPendingTemplateName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [formData, setFormData] = useState({
@@ -48,16 +47,12 @@ export default function NewComplaintPage() {
     description: '',
     remarks: '',
     tags: [] as string[],
-    templateId: '',
   });
   const [isRecording, setIsRecording] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [templateSearch, setTemplateSearch] = useState('');
   const [dswSearch, setDswSearch] = useState('');
   const [clientSearch, setClientSearch] = useState('');
-  const [showCustomTemplate, setShowCustomTemplate] = useState(false);
-  const [customTemplateName, setCustomTemplateName] = useState('');
   const voiceRecognitionRef = useRef<VoiceRecognition | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -148,38 +143,6 @@ export default function NewComplaintPage() {
     }
   };
 
-  // Filter templates based on search
-  const filteredTemplates = templates.filter(template =>
-    template.name.toLowerCase().includes(templateSearch.toLowerCase()) ||
-    template.description.toLowerCase().includes(templateSearch.toLowerCase()) ||
-    template.category.toLowerCase().includes(templateSearch.toLowerCase())
-  );
-
-  const handleSaveCustomTemplate = () => {
-    // Only template name is required
-    if (!customTemplateName.trim()) {
-      setToast({ 
-        message: 'Please enter a template name', 
-        type: 'error' 
-      });
-      return;
-    }
-
-    addTemplate({
-      name: customTemplateName,
-      category: formData.category || 'Other',
-      typeOfProblem: formData.typeOfProblem || 'Other',
-      description: formData.description || '',
-      priority: formData.priority,
-      tags: formData.tags.length > 0 ? formData.tags : undefined,
-    });
-
-    // Set pending template name to trigger auto-selection via useEffect
-    setPendingTemplateName(customTemplateName);
-    setToast({ message: 'Custom template saved and selected successfully!', type: 'success' });
-    setCustomTemplateName('');
-    setShowCustomTemplate(false);
-  };
 
   useEffect(() => {
     voiceRecognitionRef.current = new VoiceRecognition();
@@ -190,43 +153,6 @@ export default function NewComplaintPage() {
     };
   }, []);
 
-  // Auto-select newly created template
-  useEffect(() => {
-    if (pendingTemplateName) {
-      const newTemplate = templates.find(t => t.name === pendingTemplateName);
-      if (newTemplate) {
-        handleTemplateSelect(newTemplate.id);
-        setPendingTemplateName(null);
-      }
-    }
-  }, [templates, pendingTemplateName]);
-
-  const handleTemplateSelect = (templateId: string) => {
-    const template = getTemplateById(templateId);
-    if (template) {
-      setFormData({
-        ...formData,
-        templateId,
-        typeOfProblem: template.typeOfProblem,
-        category: template.category,
-        priority: template.priority,
-        description: template.description,
-        tags: template.tags || [],
-      });
-      setToast({ message: 'Template loaded successfully', type: 'success' });
-    }
-  };
-
-
-  const handleTemplateSelectChange = (value: string) => {
-    if (value === 'custom_add') {
-      setShowCustomTemplate(true);
-      setFormData({ ...formData, templateId: '' });
-      return;
-    }
-    handleTemplateSelect(value);
-    setShowCustomTemplate(false);
-  };
 
   const now = new Date();
   const complaintId = `CC-****-****`;
@@ -362,157 +288,6 @@ export default function NewComplaintPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Template Selection */}
-            <div>
-              <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>
-                Use Template (Optional)
-              </label>
-
-            {/* Custom Template Form */}
-            {showCustomTemplate && (
-              <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: '#1F2022', border: '2px solid #2AB3EE' }}>
-                <label className="block mb-2" style={{ color: '#E6E6E6', fontSize: '1rem', fontWeight: 500 }}>
-                  Template Name
-                </label>
-                <input
-                  type="text"
-                  value={customTemplateName}
-                  onChange={(e) => setCustomTemplateName(e.target.value)}
-                  placeholder="Enter template name"
-                  className="w-full rounded-lg outline-none transition mb-3"
-                  style={{ 
-                    backgroundColor: '#2A2B30', 
-                    borderColor: '#E6E6E6', 
-                    borderWidth: '2px', 
-                    borderStyle: 'solid', 
-                    color: '#E6E6E6',
-                    fontSize: '1rem',
-                    padding: '12px 16px',
-                    minHeight: '48px'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
-                  onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveCustomTemplate}
-                  className="w-full text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-                  style={{ 
-                    backgroundColor: '#2AB3EE',
-                    fontSize: '1rem',
-                    padding: '12px 20px',
-                    minHeight: '48px'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1F8FD0'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2AB3EE'}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Save as Template
-                </button>
-              </div>
-            )}
-
-            {/* Template Search + Select combined inside dropdown */}
-            <Select value={formData.templateId} onValueChange={handleTemplateSelectChange}>
-                <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
-                <SelectValue placeholder="Search or select a template..." />
-                </SelectTrigger>
-              <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
-                <div
-                  className="px-3 py-2 sticky top-0 z-10"
-                  style={{ backgroundColor: '#1F2022', borderBottom: '1px solid #2A2B30' }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={templateSearch}
-                      onChange={(e) => setTemplateSearch(e.target.value)}
-                      placeholder="Search templates..."
-                      className="w-full rounded-lg outline-none transition pr-10"
-                      style={{ 
-                        backgroundColor: '#0f1012', 
-                        borderColor: '#2A2B30', 
-                        borderWidth: '2px', 
-                        borderStyle: 'solid', 
-                        color: '#E6E6E6',
-                        fontSize: '0.95rem',
-                        padding: '10px 12px',
-                        minHeight: '44px'
-                      }}
-                      onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
-                      onBlur={(e) => e.target.style.borderColor = '#2A2B30'}
-                    />
-                    <svg 
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                      style={{ color: '#E6E6E6', opacity: 0.7 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </div>
-                </div>
-
-                <div className="px-2 py-2" style={{ borderTop: '1px solid #2A2B30', borderBottom: '1px solid #2A2B30' }}>
-                  <SelectItem 
-                    value="custom_add" 
-                    className="hover:bg-[#2A2B30] focus:bg-[#2A2B30] rounded-lg"
-                    style={{ 
-                      border: '2px solid #2AB3EE',
-                      borderColor: '#2AB3EE',
-                      padding: '12px',
-                      margin: '0'
-                    }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full" style={{ backgroundColor: '#2AB3EE', color: '#0f1012', fontWeight: 700 }}>+</span>
-                      <div>
-                        <div className="font-semibold text-[#E6E6E6]">Create custom template</div>
-                        <div className="text-sm opacity-70">Save current details for quick reuse</div>
-                      </div>
-                    </div>
-                  </SelectItem>
-                </div>
-
-                {filteredTemplates.length > 0 ? (
-                  filteredTemplates.map(t => (
-                    <SelectItem 
-                      key={t.id} 
-                      value={t.id} 
-                      className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
-                      style={{
-                        border: 'none',
-                        padding: '10px 12px',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#2A2B30';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
-                    >
-                      {t.name}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-results" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
-                    No templates found matching "{templateSearch}"
-                  </SelectItem>
-                )}
-                </SelectContent>
-              </Select>
-            {templateSearch && (
-              <p className="mt-2 text-sm" style={{ color: '#E6E6E6', opacity: 0.7 }}>
-                {filteredTemplates.length} template(s) found
-              </p>
-            )}
-            </div>
-
           {/* DSW Selection */}
           <div>
             <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>DSW (Direct Service Worker) *</label>
@@ -698,14 +473,20 @@ export default function NewComplaintPage() {
                   const typeId = String(type.id || '');
                   const typeName = String(type.name || type.code || '');
                   const typeCode = String(type.code || '');
-                  const isSelected = formData.typeOfProblem === typeId || formData.typeOfProblem === typeName;
+                  // Map type name to ProblemType
+                  const mappedTypeName: ProblemType = 
+                    typeName === 'Late Arrival' || typeName.toLowerCase().includes('late') ? 'Late arrival' :
+                    typeName === 'Behavior' || typeName.toLowerCase().includes('behavior') ? 'Behavior' :
+                    typeName === 'Missed service' || typeName.toLowerCase().includes('missed') ? 'Missed service' :
+                    'Other';
+                  const isSelected = formData.typeOfProblem === mappedTypeName;
                   const icon = getTypeIcon(typeCode, typeName);
                   
                   return (
                     <button
                       key={typeId}
                       type="button"
-                      onClick={() => setFormData({ ...formData, typeOfProblem: typeId })}
+                      onClick={() => setFormData({ ...formData, typeOfProblem: mappedTypeName })}
                       className="rounded-lg border-2 transition-all"
                       style={{
                         borderColor: isSelected ? '#2AB3EE' : '#E6E6E6',

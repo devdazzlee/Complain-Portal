@@ -128,11 +128,11 @@ const mapComplaintsFromResponse = (complaintsResponse: any): Complaint[] => {
 };
 
 // Hook to get all complaints
-export function useComplaints() {
+export function useComplaints(title?: string) {
   return useQuery({
-    queryKey: complaintKeys.lists(),
+    queryKey: [...complaintKeys.lists(), title],
     queryFn: async () => {
-      const response = await complaintService.getAll();
+      const response = await complaintService.getAll(title);
       return mapComplaintsFromResponse(response);
     },
     staleTime: 2 * 60 * 1000, // 2 minutes - complaints change frequently

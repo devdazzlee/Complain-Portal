@@ -44,6 +44,7 @@ const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint & { 
     status: String(status?.label || status?.code || 'Open'),
     priority: String(priority?.label || priority?.code || 'Low') as Priority,
     dateSubmitted: latestHistory ? new Date(String(latestHistory.created_at || '')).toLocaleDateString() : new Date().toLocaleDateString(),
+    lastUpdate: latestHistory ? new Date(String(latestHistory.updated_at || latestHistory.created_at || '')).toLocaleDateString() : new Date().toLocaleDateString(),
     assignedTo: String(latestHistory?.['Case Handle By'] || ''),
     attachments: files?.map((f: Record<string, unknown>) => ({
       id: String(f.id || ''),
@@ -54,13 +55,18 @@ const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint & { 
       uploadedBy: '',
       uploadedAt: new Date().toISOString(),
     })) || [],
-    timeline: history?.map((h: Record<string, unknown>, index: number) => ({
-      id: String(index),
-      status: String(h.status?.label || h.status?.code || ''),
-      handler: String(h['Case Handle By'] || ''),
-      remarks: String(h['Handler Remarks'] || ''),
-      date: new Date().toISOString(),
-    })) || [],
+    timeline: history?.map((h: Record<string, unknown>, index: number) => {
+      const statusObj = h.status as Record<string, unknown> | undefined;
+      const statusCode = String(statusObj?.code || '').toLowerCase();
+      return {
+        date: String(h.created_at || h.createdAt || h.date || new Date().toISOString()),
+        status: String(statusObj?.label || statusObj?.code || ''),
+        description: String(h['Handler Remarks'] || h.remarks || ''),
+        isCompleted: statusCode === 'closed',
+        isRefused: statusCode === 'refused',
+        userName: String(h['Case Handle By'] || h.handler || ''),
+      };
+    }) || [],
     rawData: item, // Preserve raw API data for extracting IDs
   } as Complaint & { rawData?: Record<string, unknown> };
 };
@@ -152,7 +158,7 @@ export default function AdminEditComplaintPage() {
         typeOfProblem: mappedComplaint.typeOfProblem as ProblemType,
         priority: mappedComplaint.priority,
         description: mappedComplaint.description,
-        remarks: mappedComplaint.timeline?.[0]?.remarks || '',
+        remarks: mappedComplaint.timeline?.[0]?.description || '',
       });
     }
   }, [complaintData, dsws, clients, types, priorities]);

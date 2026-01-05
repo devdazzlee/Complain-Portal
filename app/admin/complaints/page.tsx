@@ -30,13 +30,30 @@ const mapComplaintsFromResponse = (response: Record<string, unknown>): Complaint
     const priority = item.priority as Record<string, unknown> | undefined;
     const files = item.files as Array<Record<string, unknown>> | undefined;
 
+    // Map type to ProblemType
+    const typeName = String(type?.name || type?.code || '');
+    const mappedType: ProblemType = 
+      typeName === 'Late Arrival' || typeName.toLowerCase().includes('late') ? 'Late arrival' :
+      typeName === 'Behavior' || typeName.toLowerCase().includes('behavior') ? 'Behavior' :
+      typeName === 'Missed service' || typeName.toLowerCase().includes('missed') ? 'Missed service' :
+      'Other';
+    
+    // Map status to ComplaintStatus
+    const statusStr = String(status?.label || status?.code || 'Open').toLowerCase();
+    const mappedStatus: ComplaintStatus = 
+      statusStr.includes('open') ? 'Open' :
+      statusStr.includes('progress') || statusStr.includes('pending') ? 'In Progress' :
+      statusStr.includes('closed') || statusStr.includes('resolved') ? 'Closed' :
+      statusStr.includes('refused') || statusStr.includes('rejected') ? 'Refused' :
+      'Open';
+    
     return {
       id: String(item.id || ''),
       complaintId: `CMP-${item.id || ''}`,
       caretaker: String(item['Complainant'] || item.complainant || ''),
-      typeOfProblem: String(type?.name || type?.code || ''),
+      typeOfProblem: mappedType,
       description: String(item.description || ''),
-      status: String(status?.label || status?.code || 'Open') as ComplaintStatus,
+      status: mappedStatus,
       priority: String(priority?.label || priority?.code || 'Low') as Priority,
       dateSubmitted: (() => {
         // Helper to safely format dates
@@ -67,6 +84,40 @@ const mapComplaintsFromResponse = (response: Record<string, unknown>): Complaint
         // Fallback to current date
         return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
       })(),
+      lastUpdate: (() => {
+        // Helper to safely format dates
+        const formatDate = (dateString: string | undefined | null): string => {
+          if (!dateString) return '';
+          try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '';
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          } catch {
+            return '';
+          }
+        };
+        
+        // Try to get update date from latest history or item
+        if (latestHistory?.updated_at) {
+          const formatted = formatDate(String(latestHistory.updated_at));
+          if (formatted) return formatted;
+        }
+        
+        const updatedAt = item.updated_at as string || item.updatedAt as string || '';
+        if (updatedAt) {
+          const formatted = formatDate(updatedAt);
+          if (formatted) return formatted;
+        }
+        
+        // Fallback to dateSubmitted
+        const createdAt = item.created_at as string || item.createdAt as string || '';
+        if (createdAt) {
+          const formatted = formatDate(createdAt);
+          if (formatted) return formatted;
+        }
+        
+        return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      })(),
       assignedTo: String(latestHistory?.['Case Handle By'] || ''),
       attachments: files?.map((f: Record<string, unknown>) => ({
         id: String(f.id || ''),
@@ -77,13 +128,18 @@ const mapComplaintsFromResponse = (response: Record<string, unknown>): Complaint
         uploadedBy: '',
         uploadedAt: new Date().toISOString(),
       })) || [],
-      timeline: history?.map((h: Record<string, unknown>, index: number) => ({
-        id: String(index),
-        status: String(h.status?.label || h.status?.code || ''),
-        handler: String(h['Case Handle By'] || ''),
-        remarks: String(h['Handler Remarks'] || ''),
-        date: new Date().toISOString(),
-      })) || [],
+      timeline: history?.map((h: Record<string, unknown>, index: number) => {
+        const statusObj = h.status as Record<string, unknown> | undefined;
+        const statusCode = String(statusObj?.code || '').toLowerCase();
+        return {
+          date: String(h.created_at || h.createdAt || h.date || new Date().toISOString()),
+          status: String(statusObj?.label || statusObj?.code || ''),
+          description: String(h['Handler Remarks'] || h.remarks || ''),
+          isCompleted: statusCode === 'closed',
+          isRefused: statusCode === 'refused',
+          userName: String(h['Case Handle By'] || h.handler || ''),
+        };
+      }) || [],
     };
   });
 };
@@ -96,11 +152,37 @@ export default function AdminComplaintsPage() {
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'All'>('All');
   const [sortBy, setSortBy] = useState<'date' | 'status' | 'priority'>('date');
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const itemsPerPage = 10;
 
-  // Fetch complaints from API (only if stale)
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch complaints from API (only if stale or search query changed)
   useEffect(() => {
     const fetchComplaints = async () => {
+      // If searching, always fetch from API
+      if (debouncedSearchQuery.trim()) {
+        try {
+          setLoading(true);
+          const response = await complaintService.getAll(debouncedSearchQuery.trim());
+          const mappedComplaints = mapComplaintsFromResponse(response);
+          setComplaints(mappedComplaints);
+        } catch (error) {
+          console.error('Error fetching complaints:', error);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
+      // If not searching and cache is fresh, use cache
       if (!isComplaintsStale() && storeComplaints.length > 0) {
         setLoading(false);
         return;
@@ -119,7 +201,7 @@ export default function AdminComplaintsPage() {
     };
 
     fetchComplaints();
-  }, [isComplaintsStale, storeComplaints.length, setComplaints]);
+  }, [isComplaintsStale, storeComplaints.length, setComplaints, debouncedSearchQuery]);
 
   const filteredAndSortedComplaints = useMemo(() => {
     let filtered = [...storeComplaints];
@@ -181,16 +263,6 @@ export default function AdminComplaintsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <Layout role="admin">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Loader size="lg" />
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout role="admin">
       <div className="max-w-7xl mx-auto">
@@ -211,6 +283,28 @@ export default function AdminComplaintsPage() {
           >
             + New Complaint
           </Link>
+        </div>
+
+        {/* Search Input */}
+        <div className="mb-4 md:mb-6">
+          <input
+            type="text"
+            placeholder="Search complaints by title..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1); // Reset to first page on search
+            }}
+            className="w-full px-4 py-3 rounded-lg text-base md:text-lg"
+            style={{ 
+              backgroundColor: '#1F2022', 
+              border: '2px solid #E6E6E6', 
+              color: '#E6E6E6',
+              minHeight: '52px'
+            }}
+            onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
+            onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
+          />
         </div>
 
         {/* Filters */}
@@ -281,15 +375,20 @@ export default function AdminComplaintsPage() {
         </div>
 
         {/* Complaints List */}
-        <div className="space-y-3 md:space-y-4">
-          {filteredAndSortedComplaints.length === 0 ? (
-            <div className="text-center py-12 md:py-16 rounded-lg" style={{ backgroundColor: '#2A2B30' }}>
-              <p className="text-lg md:text-xl" style={{ color: '#E6E6E6', opacity: 0.7 }}>
-                No complaints found
-              </p>
-            </div>
-          ) : (
-            paginatedComplaints.map(complaint => (
+        {loading ? (
+          <div className="flex items-center justify-center min-h-[400px]">
+            <Loader size="lg" />
+          </div>
+        ) : (
+          <div className="space-y-3 md:space-y-4">
+            {filteredAndSortedComplaints.length === 0 ? (
+              <div className="text-center py-12 md:py-16 rounded-lg" style={{ backgroundColor: '#2A2B30' }}>
+                <p className="text-lg md:text-xl" style={{ color: '#E6E6E6', opacity: 0.7 }}>
+                  No complaints found
+                </p>
+              </div>
+            ) : (
+              paginatedComplaints.map(complaint => (
               <Link
                 key={complaint.id}
                 href={`/admin/complaints/${complaint.id}`}
@@ -327,12 +426,13 @@ export default function AdminComplaintsPage() {
                   {complaint.assignedTo && <span>Assigned: {complaint.assignedTo}</span>}
                 </div>
               </Link>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        )}
 
         {/* Pagination */}
-        {filteredAndSortedComplaints.length > 0 && (
+        {!loading && filteredAndSortedComplaints.length > 0 && (
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}

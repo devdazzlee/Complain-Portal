@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/select';
 import Layout from '../../components/Layout';
 import { assignmentService } from '../../../lib/services';
-import { Complaint } from '../../types';
+import { Complaint, ProblemType, ComplaintStatus } from '../../types';
 import PriorityBadge from '../../components/PriorityBadge';
 import Loader from '../../components/Loader';
 import Toast from '../../components/Toast';
@@ -86,16 +86,34 @@ export default function AssignmentWorkflowPage() {
     // Try to get date from various possible fields
     const dateValue = latestHistory?.created_at || latestHistory?.createdAt || apiComplaint.created_at || apiComplaint.createdAt || apiComplaint.date || null;
     
+    // Map type to ProblemType
+    const typeName = String(type?.name || type?.code || '');
+    const mappedType: ProblemType = 
+      typeName === 'Late Arrival' || typeName.toLowerCase().includes('late') ? 'Late arrival' :
+      typeName === 'Behavior' || typeName.toLowerCase().includes('behavior') ? 'Behavior' :
+      typeName === 'Missed service' || typeName.toLowerCase().includes('missed') ? 'Missed service' :
+      'Other';
+    
+    // Map status to ComplaintStatus
+    const statusStr = String(status?.label || status?.code || 'Open').toLowerCase();
+    const mappedStatus: ComplaintStatus = 
+      statusStr.includes('open') ? 'Open' :
+      statusStr.includes('progress') || statusStr.includes('pending') ? 'In Progress' :
+      statusStr.includes('closed') || statusStr.includes('resolved') ? 'Closed' :
+      statusStr.includes('refused') || statusStr.includes('rejected') ? 'Refused' :
+      'Open';
+    
     return {
       id: String(apiComplaint.id || ''),
       complaintId: `CMP-${apiComplaint.id || ''}`,
       caretaker: String(complainant),
       complaintAgainst: String(complaintAgainst),
-      typeOfProblem: String(type?.name || type?.code || ''),
+      typeOfProblem: mappedType,
       description: String(apiComplaint.description || ''),
-      status: String(status?.label || status?.code || 'Open'),
+      status: mappedStatus,
       priority: String(priority?.label || priority?.code || 'Low') as 'Low' | 'Medium' | 'High' | 'Urgent',
       dateSubmitted: formatDate(dateValue),
+      lastUpdate: formatDate(latestHistory?.updated_at || latestHistory?.created_at || apiComplaint.updated_at || apiComplaint.created_at || dateValue),
       assignedTo: String(latestHistory?.['Case Handle By'] || ''),
       attachments: files?.map((f: Record<string, unknown>) => ({
         id: String(f.id || ''),
@@ -106,13 +124,18 @@ export default function AssignmentWorkflowPage() {
         uploadedBy: '',
         uploadedAt: new Date().toISOString(),
       })) || [],
-      timeline: history?.map((h: Record<string, unknown>, index: number) => ({
-        id: String(index),
-        status: String(h.status?.label || h.status?.code || ''),
-        handler: String(h['Case Handle By'] || ''),
-        remarks: String(h['Handler Remarks'] || ''),
-        date: formatDate(h.created_at || h.createdAt || h.date) || new Date().toISOString(),
-      })) || [],
+      timeline: history?.map((h: Record<string, unknown>, index: number) => {
+        const statusObj = h.status as Record<string, unknown> | undefined;
+        const statusCode = String(statusObj?.code || '').toLowerCase();
+        return {
+          date: formatDate(h.created_at || h.createdAt || h.date) || new Date().toISOString(),
+          status: String(statusObj?.label || statusObj?.code || ''),
+          description: String(h['Handler Remarks'] || h.remarks || ''),
+          isCompleted: statusCode === 'closed',
+          isRefused: statusCode === 'refused',
+          userName: String(h['Case Handle By'] || h.handler || ''),
+        };
+      }) || [],
     };
   }, [formatDate]);
 
@@ -127,15 +150,16 @@ export default function AssignmentWorkflowPage() {
       complaintsArray = assignedComplaintsData;
     } else if (assignedComplaintsData && typeof assignedComplaintsData === 'object') {
       // If it's an object (like { "0": {...}, "1": {...} }), convert to array
-      if (assignedComplaintsData.complaints) {
-        const complaints = assignedComplaintsData.complaints;
+      const dataObj = assignedComplaintsData as Record<string, unknown>;
+      if (dataObj.complaints) {
+        const complaints = dataObj.complaints;
         if (Array.isArray(complaints)) {
           complaintsArray = complaints;
         } else if (complaints && typeof complaints === 'object') {
           complaintsArray = Object.values(complaints);
         }
-      } else if (assignedComplaintsData.data) {
-        const data = assignedComplaintsData.data;
+      } else if (dataObj.data) {
+        const data = dataObj.data;
         if (Array.isArray(data)) {
           complaintsArray = data;
         } else if (data && typeof data === 'object') {
@@ -143,7 +167,7 @@ export default function AssignmentWorkflowPage() {
         }
       } else {
         // Direct object with numeric keys
-        complaintsArray = Object.values(assignedComplaintsData);
+        complaintsArray = Object.values(dataObj);
       }
     }
 
@@ -221,7 +245,7 @@ export default function AssignmentWorkflowPage() {
             name: String(p.first_name || p.name || p.username || '') + 
                   (p.last_name ? ` ${String(p.last_name)}` : ''),
             email: String(p.email || ''),
-            role: String(p.role?.name || p.role || 'provider'),
+            role: String((p.role as Record<string, unknown>)?.name || p.role || 'provider'),
           }));
           setProviders(mappedProviders);
         }
@@ -269,8 +293,8 @@ export default function AssignmentWorkflowPage() {
     const searchLower = providerSearch.toLowerCase();
     return providers.filter(provider => 
       provider.name.toLowerCase().includes(searchLower) ||
-      provider.email.toLowerCase().includes(searchLower) ||
-      provider.role.toLowerCase().includes(searchLower)
+      (provider.email || '').toLowerCase().includes(searchLower) ||
+      (provider.role || '').toLowerCase().includes(searchLower)
     );
   }, [providers, providerSearch]);
 

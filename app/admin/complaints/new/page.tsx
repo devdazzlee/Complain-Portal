@@ -414,14 +414,20 @@ export default function NewComplaintPage() {
                   const typeId = String(type.id || '');
                   const typeName = String(type.name || type.code || '');
                   const typeCode = String(type.code || '');
-                  const isSelected = formData.typeOfProblem === typeId || formData.typeOfProblem === typeName;
+                  // Map type name to ProblemType
+                  const mappedTypeName: ProblemType = 
+                    typeName === 'Late Arrival' || typeName.toLowerCase().includes('late') ? 'Late arrival' :
+                    typeName === 'Behavior' || typeName.toLowerCase().includes('behavior') ? 'Behavior' :
+                    typeName === 'Missed service' || typeName.toLowerCase().includes('missed') ? 'Missed service' :
+                    'Other';
+                  const isSelected = formData.typeOfProblem === mappedTypeName;
                   const icon = getTypeIcon(typeCode, typeName);
                   
                   return (
                     <button
                       key={typeId}
                       type="button"
-                      onClick={() => setFormData({ ...formData, typeOfProblem: typeId })}
+                      onClick={() => setFormData({ ...formData, typeOfProblem: mappedTypeName })}
                       className="rounded-lg border-2 transition-all"
                       style={{
                         borderColor: isSelected ? '#2AB3EE' : '#E6E6E6',

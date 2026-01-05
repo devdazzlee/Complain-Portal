@@ -102,21 +102,29 @@ export default function AdvancedSearchPage() {
         console.log('SortBy response:', sortByResponse);
 
         // Parse statuses - API returns { status: true, statuses: [...] }
-        const apiStatuses = statusesResponse?.statuses || statusesResponse?.payload || statusesResponse?.data || (Array.isArray(statusesResponse) ? statusesResponse : []);
+        const apiStatuses = (typeof statusesResponse === 'object' && statusesResponse !== null && !Array.isArray(statusesResponse))
+          ? (statusesResponse as any).statuses || (statusesResponse as any).payload || (statusesResponse as any).data
+          : Array.isArray(statusesResponse) ? statusesResponse : [];
         console.log('Parsed statuses:', apiStatuses);
         setStatuses(Array.isArray(apiStatuses) ? apiStatuses : []);
 
         // Parse types - API returns { status: true, types: [...] }
-        const apiTypes = typesResponse?.types || typesResponse?.payload || typesResponse?.data || (Array.isArray(typesResponse) ? typesResponse : []);
+        const apiTypes = (typeof typesResponse === 'object' && typesResponse !== null && !Array.isArray(typesResponse))
+          ? (typesResponse as any).types || (typesResponse as any).payload || (typesResponse as any).data
+          : Array.isArray(typesResponse) ? typesResponse : [];
         console.log('Parsed types:', apiTypes);
         setTypes(Array.isArray(apiTypes) ? apiTypes : []);
 
         // Parse priorities
-        const apiPriorities = prioritiesResponse?.priorities || prioritiesResponse?.payload || prioritiesResponse?.data || (Array.isArray(prioritiesResponse) ? prioritiesResponse : []);
+        const apiPriorities = (typeof prioritiesResponse === 'object' && prioritiesResponse !== null && !Array.isArray(prioritiesResponse))
+          ? (prioritiesResponse as any).priorities || (prioritiesResponse as any).payload || (prioritiesResponse as any).data
+          : Array.isArray(prioritiesResponse) ? prioritiesResponse : [];
         setPriorities(Array.isArray(apiPriorities) ? apiPriorities : []);
 
         // Parse sort by options
-        const apiSortBy = sortByResponse?.sort_by || sortByResponse?.sortByOptions || sortByResponse?.payload || sortByResponse?.data || (Array.isArray(sortByResponse) ? sortByResponse : []);
+        const apiSortBy = (typeof sortByResponse === 'object' && sortByResponse !== null && !Array.isArray(sortByResponse))
+          ? (sortByResponse as any).sort_by || (sortByResponse as any).sortByOptions || (sortByResponse as any).payload || (sortByResponse as any).data
+          : Array.isArray(sortByResponse) ? sortByResponse : [];
         console.log('Parsed sortBy:', apiSortBy);
         const sortByList = Array.isArray(apiSortBy) ? apiSortBy : [];
         setSortByOptions(sortByList);

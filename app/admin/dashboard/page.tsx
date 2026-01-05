@@ -155,7 +155,7 @@ export default function AdminDashboard() {
       }
       // Sort by type
       else if (sortType.includes('type')) {
-        return a.type.localeCompare(b.type);
+        return a.typeOfProblem.localeCompare(b.typeOfProblem);
       }
       // Default: sort by date (newest first)
       else {
@@ -290,8 +290,8 @@ export default function AdminDashboard() {
   // API returns: { status: true, states: { total_users, providers, admins, ... } }
   const apiStats = statsResponseData?.states as Record<string, unknown> | undefined;
   const totalUsers = (apiStats?.total_users as number) ?? storeUsers.length;
-  const totalProviders = (apiStats?.providers as number) ?? storeUsers.filter((u) => u.role === "provider" || u.role_id === 2).length;
-  const totalAdmins = (apiStats?.admins as number) ?? storeUsers.filter((u) => u.role === "admin" || u.role_id === 1).length;
+  const totalProviders = (apiStats?.providers as number) ?? storeUsers.filter((u: Record<string, unknown>) => u.role === "provider" || u.role_id === 2).length;
+  const totalAdmins = (apiStats?.admins as number) ?? storeUsers.filter((u: Record<string, unknown>) => u.role === "admin" || u.role_id === 1).length;
 
   if (loading) {
     return (
@@ -571,7 +571,7 @@ export default function AdminDashboard() {
               style={{ backgroundColor: "#1F2022" }}
             >
               <p style={{ color: "#E6E6E6", fontSize: "1.25rem" }}>
-                {complaints.length === 0
+                {allComplaints.length === 0
                   ? "No complaints yet."
                   : "No complaints match your filters."}
               </p>
@@ -734,7 +734,7 @@ export default function AdminDashboard() {
                     className="text-center py-12"
                     style={{ color: "#E6E6E6", fontSize: "1.25rem" }}
                   >
-                    {complaints.length === 0
+                    {allComplaints.length === 0
                       ? "No complaints yet."
                       : "No complaints match your filters."}
                   </td>
