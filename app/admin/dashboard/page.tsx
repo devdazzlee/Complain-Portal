@@ -12,9 +12,18 @@ import {
 } from "@/components/ui/select";
 import { ComplaintStatus, ProblemType, Complaint, Priority, FileAttachment, ComplaintTimelineItem } from "../../types";
 import Pagination from "../../components/Pagination";
-import { dashboardService, complaintService } from "../../../lib/services";
 import Loader from "../../components/Loader";
-import { useDashboardStore } from "../../../lib/stores/dashboardStore";
+import {
+  useComplaints,
+  useComplaintStatuses,
+  useComplaintTypes,
+  useSortByOptions,
+  useSearchComplaints,
+} from "../../../lib/hooks";
+import {
+  useDashboardStats,
+  useUsers,
+} from "../../../lib/hooks";
 
 type CardType = "open" | "pending" | "resolved" | "refused";
 
@@ -28,50 +37,82 @@ interface DashboardStats {
 export default function AdminDashboard() {
   const router = useRouter();
   
-  // Use Zustand store instead of local state
-  const {
-    stats,
-    complaints,
-    statuses,
-    types,
-    users,
-    statsResponseData,
-    setStats,
-    setComplaints,
-    setStatuses,
-    setTypes,
-    setUsers,
-    isStatsStale,
-    isComplaintsStale,
-    isMetadataStale,
-  } = useDashboardStore();
+  // Use React Query hooks for data fetching
+  const { data: complaintsData, isLoading: complaintsLoading } = useComplaints();
+  const { data: statsData, isLoading: statsLoading } = useDashboardStats();
+  const { data: statusesData, isLoading: statusesLoading } = useComplaintStatuses();
+  const { data: typesData, isLoading: typesLoading } = useComplaintTypes();
+  const { data: sortByData } = useSortByOptions();
+  const { data: usersData, isLoading: usersLoading } = useUsers();
   
-  const [loading, setLoading] = useState(true);
-  const [sortingLoading, setSortingLoading] = useState(false);
-  
-  // Use store values with fallbacks
-  const storeStats = stats || {
+  // Extract data with fallbacks
+  const storeComplaints = complaintsData || [];
+  const storeStats = statsData?.stats || {
     openComplaints: 0,
     pendingFollowups: 0,
     resolvedThisMonth: 0,
     refusedComplaints: 0,
   };
-  const storeComplaints = complaints || [];
-  const storeStatuses = statuses || [];
-  const storeTypes = types || [];
-  const storeUsers = users || [];
-  const [statusFilter, setStatusFilter] = useState<ComplaintStatus | "All">(
-    "All"
-  );
+  const statsResponseData = statsData?.rawResponse;
+  const storeStatuses = Array.isArray(statusesData) ? statusesData : [];
+  const storeTypes = Array.isArray(typesData) ? typesData : [];
+  const storeUsers = Array.isArray(usersData?.users || usersData?.data || usersData) 
+    ? (usersData?.users || usersData?.data || usersData) 
+    : [];
+  const sortByOptions = Array.isArray(sortByData?.sort_by || sortByData?.data || sortByData)
+    ? (sortByData?.sort_by || sortByData?.data || sortByData)
+    : [];
+  
+  const [statusFilter, setStatusFilter] = useState<ComplaintStatus | "All">("All");
   const [typeFilter, setTypeFilter] = useState<ProblemType | "All">("All");
   const [sortBy, setSortBy] = useState<string>("");
-  const [sortByOptions, setSortByOptions] = useState<Array<Record<string, unknown>>>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  
+  // Build search filters for filtered complaints
+  const searchFilters = useMemo(() => {
+    const filters: {
+      status_id?: number;
+      type_id?: number;
+    } = {};
+    
+    if (statusFilter !== "All") {
+      const status = storeStatuses.find((s: Record<string, unknown>) => {
+        const name = (s.name as string) || (s.status_name as string) || '';
+        return name.toLowerCase() === statusFilter.toLowerCase();
+      });
+      const statusId = (status?.id as number) || (status?.status_id as number);
+      if (statusId) filters.status_id = statusId;
+    }
+    
+    if (typeFilter !== "All") {
+      const type = storeTypes.find((t: Record<string, unknown>) => {
+        const name = (t.name as string) || (t.type_name as string) || '';
+        return name.toLowerCase() === typeFilter.toLowerCase();
+      });
+      const typeId = (type?.id as number) || (type?.type_id as number);
+      if (typeId) filters.type_id = typeId;
+    }
+    
+    return filters;
+  }, [statusFilter, typeFilter, storeStatuses, storeTypes]);
+  
+  // Use search when filters are applied, otherwise use all complaints
+  const hasFilters = Object.keys(searchFilters).length > 0;
+  const { data: filteredComplaintsData, isLoading: searchLoading } = useSearchComplaints(
+    hasFilters ? searchFilters : { general_search: "" } // Pass empty object to disable query
+  );
+  
+  // Determine which complaints to use
+  const allComplaints = hasFilters 
+    ? (filteredComplaintsData || [])
+    : storeComplaints;
+  
+  const loading = complaintsLoading || statsLoading || statusesLoading || typesLoading || usersLoading || (hasFilters && searchLoading);
 
   // Use filtered complaints directly from state (fetched from API)
   const filteredAndSortedComplaints = useMemo(() => {
-    const filtered = [...complaints];
+    const filtered = [...allComplaints];
 
     // Get the sort option details from sortByOptions
     const selectedSortOption = sortByOptions.find((option: Record<string, unknown>) => {
@@ -126,7 +167,7 @@ export default function AdminDashboard() {
     });
 
     return filtered;
-  }, [complaints, sortBy, sortByOptions]);
+  }, [allComplaints, sortBy, sortByOptions]);
 
   const totalPages = Math.ceil(
     filteredAndSortedComplaints.length / itemsPerPage
@@ -138,262 +179,20 @@ export default function AdminDashboard() {
     endIndex
   );
 
-  // Reset to page 1 when filters change and show loading
+  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-    // Show loading when sort/filter changes
-    if (sortBy || statusFilter !== "All" || typeFilter !== "All") {
-      setSortingLoading(true);
-      // Clear loading after a brief moment (sorting is fast but we want to show feedback)
-      const timer = setTimeout(() => {
-        setSortingLoading(false);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
   }, [statusFilter, typeFilter, sortBy]);
 
-  // Helper function to map complaints from API response
-  const mapComplaintsFromResponse = (complaintsResponse: Record<string, unknown>): Complaint[] => {
-    const apiComplaints = complaintsResponse?.complaints || complaintsResponse?.payload || complaintsResponse?.data || complaintsResponse;
-    const complaintsList = Array.isArray(apiComplaints) ? apiComplaints : [];
-    
-    return complaintsList.map((item: Record<string, unknown>) => {
-      // Get the latest status from history array
-      const history = (item.history as Array<Record<string, unknown>>) || [];
-      const latestStatus = history.length > 0 
-        ? (history[history.length - 1].status as Record<string, unknown>)
-        : null;
-      const statusLabel = latestStatus?.label as string || "Open";
-      
-      // Get type from type object
-      const typeObj = item.type as Record<string, unknown> || {};
-      const typeName = (typeObj.name as string) || (typeObj.code as string) || "Other";
-      
-      // Get priority from priority object
-      const priorityObj = item.priority as Record<string, unknown> || {};
-      const priorityLabel = (priorityObj.label as string) || "Medium";
-      
-      // Get files/attachments
-      const files = (item.files as Array<Record<string, unknown>>) || [];
-      const attachments: FileAttachment[] = files.map((file: Record<string, unknown>) => ({
-        id: String(file.id || ''),
-        name: (file.file_name as string) || '',
-        url: (file.url as string) || '',
-        type: (file.type as string) || 'image',
-        size: 0,
-        uploadedBy: '',
-        uploadedAt: new Date().toISOString(),
-      }));
-      
-      // Map timeline from history
-      const timeline: ComplaintTimelineItem[] = history.map((hist: Record<string, unknown>) => {
-        const statusObj = hist.status as Record<string, unknown> || {};
-        const statusLabel = statusObj.label as string || 'Unknown';
-        const statusCode = statusObj.code as string || '';
-        return {
-          status: statusLabel,
-          date: new Date().toISOString(),
-          description: (hist["Handler Remarks"] as string) || '',
-          isCompleted: statusCode === 'closed',
-          isRefused: statusCode === 'refused',
-          userName: (hist["Case Handle By"] as string) || undefined,
-        };
-      });
-      
-      return {
-        id: String(item.id || Date.now()),
-        complaintId: `CMP-${item.id}`,
-        caretaker: String(item.Complainant || item.caretaker_name || item.client_name || "Unknown"),
-        typeOfProblem: (typeName === "Late Arrival" ? "Late arrival" : typeName) as ProblemType,
-        description: String(item.description || ""),
-        dateSubmitted: new Date().toLocaleDateString(),
-        lastUpdate: new Date().toLocaleDateString(),
-        status: mapStatus(statusLabel),
-        priority: priorityLabel as Priority,
-        category: undefined,
-        tags: [],
-        attachments: attachments,
-        timeline: timeline,
-      };
-    });
-  };
-
-  // Fetch complaints with filters (for filter changes, doesn't set loading)
-  const fetchComplaints = useCallback(async (skipLoading = false) => {
-    try {
-      if (!skipLoading) {
-        setLoading(true);
-      }
-      
-      // Build search filters
-      const searchFilters: Record<string, number> = {};
-      
-      // Get status ID if filter is set
-      if (statusFilter !== "All") {
-        const status = storeStatuses.find((s: Record<string, unknown>) => {
-          const name = (s.name as string) || (s.status_name as string) || '';
-          return name.toLowerCase() === statusFilter.toLowerCase();
-        });
-        const statusId = (status?.id as number) || (status?.status_id as number);
-        if (statusId) searchFilters.status_id = statusId;
-      }
-      
-      // Get type ID if filter is set
-      if (typeFilter !== "All") {
-        const type = storeTypes.find((t: Record<string, unknown>) => {
-          const name = (t.name as string) || (t.type_name as string) || '';
-          return name.toLowerCase() === typeFilter.toLowerCase();
-        });
-        const typeId = (type?.id as number) || (type?.type_id as number);
-        if (typeId) searchFilters.type_id = typeId;
-      }
-
-      // Use advance search if filters are applied, otherwise get all
-      let complaintsResponse;
-      if (Object.keys(searchFilters).length > 0) {
-        complaintsResponse = await complaintService.search(searchFilters);
-      } else {
-        complaintsResponse = await complaintService.getAll();
-      }
-
-      const mappedComplaints = mapComplaintsFromResponse(complaintsResponse);
-      setComplaints(mappedComplaints);
-    } catch (error) {
-      console.error('Error fetching complaints:', error);
-    } finally {
-      if (!skipLoading) {
-        setLoading(false);
-      }
-    }
-  }, [statusFilter, typeFilter, storeStatuses, storeTypes, mapComplaintsFromResponse, setComplaints]);
-
-  // Fetch all dashboard data on mount - ONLY if stale or missing (Zustand cache)
+  // Set default sortBy when options are loaded
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      // Check if we need to fetch data (stale or missing)
-      const needStats = !stats || isStatsStale();
-      const needComplaints = complaints.length === 0 || isComplaintsStale();
-      const needMetadata = storeStatuses.length === 0 || storeTypes.length === 0 || storeUsers.length === 0 || isMetadataStale();
-      
-      // If all data is fresh, just set loading to false
-      if (!needStats && !needComplaints && !needMetadata) {
-        setLoading(false);
-        return;
-      }
-      
-      try {
-        setLoading(true);
-        
-        // Fetch only what we need in parallel
-        const promises: Promise<Record<string, unknown> | null>[] = [];
-        
-        if (needStats) {
-          promises.push(dashboardService.getStats().catch(() => null));
-        } else {
-          promises.push(Promise.resolve(null));
-        }
-        
-        if (needMetadata) {
-          promises.push(complaintService.getStatuses().catch(() => ({ data: [] })));
-          promises.push(complaintService.getTypes().catch(() => ({ data: [] })));
-          promises.push(complaintService.getSortByOptions().catch(() => ({ data: [] })));
-          promises.push(dashboardService.getUsers().catch(() => ({ data: [] })));
-        } else {
-          promises.push(Promise.resolve(null));
-          promises.push(Promise.resolve(null));
-          promises.push(Promise.resolve(null));
-          promises.push(Promise.resolve(null));
-        }
-        
-        if (needComplaints) {
-          promises.push(complaintService.getAll().catch(() => ({ complaints: [] })));
-        } else {
-          promises.push(Promise.resolve(null));
-        }
-        
-        const [statsResponse, statusesResponse, typesResponse, sortByResponse, usersResponse, complaintsResponse] = await Promise.all(promises);
-
-        // Update stats if fetched
-        if (needStats && statsResponse) {
-          const apiStatsData = (statsResponse?.states || statsResponse?.payload || statsResponse?.data || statsResponse) as Record<string, unknown>;
-          const mappedStats: DashboardStats = {
-            openComplaints: (apiStatsData?.open_complaints as number) || (apiStatsData?.open as number) || 0,
-            pendingFollowups: (apiStatsData?.pending_followups as number) || (apiStatsData?.pending as number) || 0,
-            resolvedThisMonth: (apiStatsData?.resolved_this_month as number) || (apiStatsData?.resolved as number) || 0,
-            refusedComplaints: (apiStatsData?.refused_complaints as number) || (apiStatsData?.refused as number) || 0,
-          };
-          setStats(mappedStats, statsResponse as Record<string, unknown>);
-        }
-
-        // Update metadata if fetched
-        if (needMetadata) {
-          if (statusesResponse) {
-            const apiStatuses = statusesResponse?.payload || statusesResponse?.data || statusesResponse;
-            const statusesList = Array.isArray(apiStatuses) ? apiStatuses : [];
-            setStatuses(statusesList as Array<Record<string, unknown>>);
-          }
-          
-          if (typesResponse) {
-            // Parse types - API returns { status: true, types: [...] }
-            const apiTypes = typesResponse?.types || typesResponse?.payload || typesResponse?.data || (Array.isArray(typesResponse) ? typesResponse : []);
-            const typesList = Array.isArray(apiTypes) ? apiTypes : [];
-            console.log('Admin Dashboard - Parsed types:', typesList);
-            setTypes(typesList as Array<Record<string, unknown>>);
-          }
-          
-          if (sortByResponse) {
-            // Parse sort by options - API returns { status: true, sort_by: [...] } or similar
-            const apiSortBy = sortByResponse?.sort_by || sortByResponse?.sortByOptions || sortByResponse?.payload || sortByResponse?.data || (Array.isArray(sortByResponse) ? sortByResponse : []);
-            const sortByList = Array.isArray(apiSortBy) ? apiSortBy : [];
-            console.log('Admin Dashboard - Parsed sortBy:', sortByList);
-            setSortByOptions(sortByList);
-            // Set default sortBy if not set or if current value doesn't exist in options
-            if (sortByList.length > 0) {
-              const currentValueExists = sortByList.some((option: Record<string, unknown>) => {
-                const optionId = String(option.id || option.value || '');
-                return optionId === sortBy;
-              });
-              if (!sortBy || !currentValueExists) {
-                const firstSortOption = sortByList[0] as Record<string, unknown>;
+    if (sortByOptions.length > 0 && !sortBy) {
+      const firstSortOption = sortByOptions[0] as Record<string, unknown>;
                 const firstOptionId = String(firstSortOption.id || firstSortOption.value || '');
                 setSortBy(firstOptionId);
-                console.log('Admin Dashboard - Set default sortBy to:', firstOptionId);
-              }
-            }
-          }
-          
-          if (usersResponse) {
-            const apiUsers = usersResponse?.payload || usersResponse?.data || usersResponse;
-            const usersList = Array.isArray(apiUsers) ? apiUsers : [];
-            setUsers(usersList as Array<Record<string, unknown>>);
-          }
-        }
-
-        // Update complaints if fetched
-        if (needComplaints && complaintsResponse) {
-          const mappedComplaints = mapComplaintsFromResponse(complaintsResponse);
-          setComplaints(mappedComplaints);
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Fetch complaints when filters change (skip loading state to avoid flicker)
-  useEffect(() => {
-    // Only refetch if statuses/types have been initialized (even if empty)
-    // Skip loading state to prevent loader flicker on filter changes
-    if (storeStatuses.length >= 0 && storeTypes.length >= 0) {
-      fetchComplaints(true); // skipLoading = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, typeFilter]);
+  }, [sortByOptions, sortBy]);
+
 
   // Map API status to ComplaintStatus
   const mapStatus = (status: string | number): ComplaintStatus => {
@@ -416,6 +215,11 @@ export default function AdminDashboard() {
   };
 
   const getStatusBadge = (status: ComplaintStatus) => {
+    // Don't render badge if status is empty or undefined
+    if (!status || status.trim() === '') {
+      return null;
+    }
+    
     if (status === "In Progress") {
       return (
         <span className="inline-flex items-center gap-2">
@@ -640,7 +444,6 @@ export default function AdminDashboard() {
             <Select
               value={statusFilter}
               onValueChange={(value) => {
-                setSortingLoading(true);
                 setStatusFilter(value as ComplaintStatus | "All");
               }}
             >
@@ -681,7 +484,6 @@ export default function AdminDashboard() {
             <Select
               value={typeFilter}
               onValueChange={(value) => {
-                setSortingLoading(true);
                 setTypeFilter(value as ProblemType | "All");
               }}
             >
@@ -723,7 +525,7 @@ export default function AdminDashboard() {
             <Select
               value={sortBy}
               onValueChange={(value) => {
-                setSortingLoading(true);
+                // Removed - React Query handles loading automatically(true);
                 setSortBy(value);
               }}
             >
@@ -759,7 +561,7 @@ export default function AdminDashboard() {
 
         {/* Mobile Card View */}
         <div className="md:hidden space-y-4">
-          {sortingLoading ? (
+          {loading ? (
             <div className="flex items-center justify-center py-12 rounded-lg" style={{ backgroundColor: "#1F2022" }}>
               <Loader size="lg" />
             </div>
@@ -917,7 +719,7 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {sortingLoading ? (
+              {loading ? (
                 <tr>
                   <td colSpan={5} className="text-center py-12">
                     <div className="flex items-center justify-center">

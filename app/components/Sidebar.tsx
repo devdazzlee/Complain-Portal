@@ -114,6 +114,12 @@ export default function Sidebar({ role }: SidebarProps) {
         !pathname.startsWith("/provider/complaints/new")
       );
     }
+    if (href === "/admin/complaints") {
+      return (
+        pathname.startsWith("/admin/complaints/") &&
+        !pathname.startsWith("/admin/complaints/new")
+      );
+    }
     return pathname.startsWith(`${href}/`);
   };
 

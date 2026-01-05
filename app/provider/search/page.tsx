@@ -158,20 +158,30 @@ export default function AdvancedSearchPage() {
   };
 
   // Map priority label to ID
-  const getPriorityId = (priorityLabel: Priority): number | undefined => {
-    const priority = priorities.find((p: any) => 
-      p.label?.toLowerCase() === priorityLabel.toLowerCase() || 
-      p.code?.toLowerCase() === priorityLabel.toLowerCase()
-    );
+  const getPriorityId = (priorityLabel: Priority | 'All'): number | undefined => {
+    if (priorityLabel === 'All') return undefined;
+    const priority = priorities.find((p: any) => {
+      const pLabel = (p.label as string)?.toLowerCase() || '';
+      const pName = (p.name as string)?.toLowerCase() || '';
+      const pCode = (p.code as string)?.toLowerCase() || '';
+      const searchLabel = priorityLabel.toLowerCase();
+      return pLabel === searchLabel || pName === searchLabel || pCode === searchLabel;
+    });
     return priority?.id as number | undefined;
   };
 
   // Map type/category label to ID
-  const getTypeId = (categoryLabel: ComplaintCategory): number | undefined => {
-    const type = types.find((t: any) => 
-      t.name?.toLowerCase() === categoryLabel.toLowerCase() || 
-      t.code?.toLowerCase() === categoryLabel.toLowerCase()
-    );
+  const getTypeId = (categoryLabel: ProblemType | ComplaintCategory | 'All'): number | undefined => {
+    if (categoryLabel === 'All') return undefined;
+    // Handle "Late arrival" vs "Late Arrival" mapping
+    const normalizedLabel = categoryLabel === 'Late arrival' ? 'Late Arrival' : categoryLabel;
+    const type = types.find((t: any) => {
+      const tName = (t.name as string)?.toLowerCase() || '';
+      const tCode = (t.code as string)?.toLowerCase() || '';
+      const searchLabel = normalizedLabel.toLowerCase();
+      return tName === searchLabel || tCode === searchLabel || 
+             (normalizedLabel === 'Late Arrival' && (tName.includes('late') || tCode.includes('late')));
+    });
     return type?.id as number | undefined;
   };
 
@@ -227,14 +237,49 @@ export default function AdvancedSearchPage() {
         return 'Open';
       };
       
+      // Helper function to safely format dates
+      const formatDate = (dateString: string | undefined | null): string => {
+        if (!dateString) return '';
+        try {
+          const date = new Date(dateString);
+          if (isNaN(date.getTime())) return '';
+          return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          });
+        } catch {
+          return '';
+        }
+      };
+      
+      // Get dates from API - check multiple possible locations
+      const createdAt = item.created_at as string || 
+                       item.createdAt as string || 
+                       (history.length > 0 && history[0].created_at ? String(history[0].created_at) : '') ||
+                       '';
+      const updatedAt = item.updated_at as string || 
+                       item.updatedAt as string || 
+                       (history.length > 0 && history[history.length - 1].updated_at ? String(history[history.length - 1].updated_at) : '') ||
+                       '';
+      
+      // Format dates safely - use current date as fallback if no date available
+      const dateSubmitted = formatDate(createdAt) || 
+                            (history.length > 0 ? formatDate(String(history[0].created_at || history[0].updated_at || '')) : '') ||
+                            new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      
+      const lastUpdate = formatDate(updatedAt) ||
+                        (history.length > 0 ? formatDate(String(history[history.length - 1].updated_at || history[history.length - 1].created_at || '')) : '') ||
+                        dateSubmitted;
+      
       return {
         id: String(item.id || Date.now()),
         complaintId: `CMP-${item.id}`,
         caretaker: String(item.Complainant || item.caretaker_name || item.client_name || "Unknown"),
         typeOfProblem: (typeName === "Late Arrival" ? "Late arrival" : typeName) as ProblemType,
         description: String(item.description || ""),
-        dateSubmitted: new Date().toLocaleDateString(),
-        lastUpdate: new Date().toLocaleDateString(),
+        dateSubmitted: dateSubmitted,
+        lastUpdate: lastUpdate,
         status: mapStatus(statusLabel),
         priority: priorityLabel as Priority,
         category: undefined,
@@ -258,24 +303,39 @@ export default function AdvancedSearchPage() {
         searchFilters.general_search = filters.searchQuery.trim();
       }
       
-      // Status filter (take first selected status)
-      if (filters.status.length > 0) {
+      // Status filter - use dropdown filter first, then button filters
+      if (statusFilter !== 'All') {
+        const statusId = getStatusId(statusFilter);
+        if (statusId) {
+          searchFilters.status_id = statusId;
+        }
+      } else if (filters.status.length > 0) {
         const statusId = getStatusId(filters.status[0]);
         if (statusId) {
           searchFilters.status_id = statusId;
         }
       }
       
-      // Priority filter (take first selected priority)
-      if (filters.priority.length > 0) {
+      // Priority filter - use dropdown filter first, then button filters
+      if (priorityFilter !== 'All') {
+        const priorityId = getPriorityId(priorityFilter);
+        if (priorityId) {
+          searchFilters.priority_id = priorityId;
+        }
+      } else if (filters.priority.length > 0) {
         const priorityId = getPriorityId(filters.priority[0]);
         if (priorityId) {
           searchFilters.priority_id = priorityId;
         }
       }
       
-      // Type filter (take first selected category)
-      if (filters.category.length > 0) {
+      // Type filter - use dropdown filter first, then button filters
+      if (typeFilter !== 'All') {
+        const typeId = getTypeId(typeFilter);
+        if (typeId) {
+          searchFilters.type_id = typeId;
+        }
+      } else if (filters.category.length > 0) {
         const typeId = getTypeId(filters.category[0]);
         if (typeId) {
           searchFilters.type_id = typeId;
@@ -295,6 +355,8 @@ export default function AdvancedSearchPage() {
           searchFilters.sort_by = sortByValue;
         }
       }
+      
+      console.log('Search filters being sent:', searchFilters);
       
       // Call API
       const response = await complaintService.search(searchFilters);
@@ -381,8 +443,29 @@ export default function AdvancedSearchPage() {
       dateRange: { start: '', end: '' },
       tags: [],
     });
+    setStatusFilter('All');
+    setTypeFilter('All');
+    setPriorityFilter('All');
+    setSortBy('');
     setResults([]);
   };
+  
+  // Auto-search when dropdown filters change (only if we have results or search query)
+  useEffect(() => {
+    // Only auto-search if we have results already (meaning user has searched before) or has search query
+    // This prevents auto-searching on initial load
+    const shouldAutoSearch = results.length > 0 || filters.searchQuery.trim().length > 0;
+    const hasFilters = statusFilter !== 'All' || typeFilter !== 'All' || priorityFilter !== 'All' || filters.searchQuery.trim() || (filters.dateRange.start && filters.dateRange.end);
+    
+    if (shouldAutoSearch && hasFilters) {
+      // Debounce the search to avoid too many API calls
+      const timer = setTimeout(() => {
+        handleSearch();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, typeFilter, priorityFilter, sortBy]);
 
   return (
     <Layout role="provider">

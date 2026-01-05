@@ -4,12 +4,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '../../../../components/Layout';
 import { useApp } from '../../../../context/AppContext';
-import { complaintService, dswService, clientService } from '../../../../../lib/services';
+import { complaintService } from '../../../../../lib/services';
 import { useDashboardStore } from '../../../../../lib/stores/dashboardStore';
 import { useComplaintDetailStore } from '../../../../../lib/stores/complaintDetailStore';
 import { ProblemType, Priority, Complaint } from '../../../../types';
 import Loader from '../../../../components/Loader';
 import Toast from '../../../../components/Toast';
+import { useComplaint, useDsws, useClients, useTypes, usePriorities, useUpdateComplaint } from '../../../../../lib/hooks';
 import {
   Select,
   SelectContent,
@@ -67,11 +68,18 @@ export default function EditComplaintPage() {
   const params = useParams();
   const router = useRouter();
   const { currentUser } = useApp();
-  const { complaints: storeComplaints } = useDashboardStore();
-  const { getComplaint, setComplaint: setComplaintInStore, isStale } = useComplaintDetailStore();
-  const [complaint, setComplaint] = useState<Complaint | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [fetching, setFetching] = useState(true);
+  const complaintId = params.id as string;
+  const numericId = complaintId.replace('CMP-', '');
+  
+  // Use React Query hooks
+  const { data: complaintData, isLoading: complaintLoading } = useComplaint(numericId);
+  const { data: dsws = [], isLoading: dswsLoading } = useDsws();
+  const { data: clients = [], isLoading: clientsLoading } = useClients();
+  const { data: types = [], isLoading: typesLoading } = useTypes();
+  const { data: priorities = [], isLoading: prioritiesLoading } = usePriorities();
+  const updateComplaintMutation = useUpdateComplaint();
+  
+  const [complaint, setComplaint] = useState<Complaint & { rawData?: Record<string, unknown> } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [formData, setFormData] = useState({
@@ -82,103 +90,71 @@ export default function EditComplaintPage() {
     description: '',
     remarks: '',
   });
-  const [dsws, setDsws] = useState<Array<{ id: number | string; name: string }>>([]);
-  const [clients, setClients] = useState<Array<{ id: number | string; name: string }>>([]);
-  const [types, setTypes] = useState<Array<Record<string, unknown>>>([]);
-  const [priorities, setPriorities] = useState<Array<Record<string, unknown>>>([]);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [dswSearch, setDswSearch] = useState('');
   const [clientSearch, setClientSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch complaint data
+  // Populate form when complaint data is loaded
   useEffect(() => {
-    const fetchComplaint = async () => {
-      try {
-        setLoading(true);
-        const complaintId = params.id as string;
-        const numericId = complaintId.replace('CMP-', '');
-        
-        // First try Zustand stores
-        const cachedComplaint = getComplaint(complaintId) || getComplaint(numericId);
-        const cachedId = getComplaint(complaintId) ? complaintId : numericId;
-        if (cachedComplaint && cachedId && !isStale(cachedId)) {
-          setComplaint(cachedComplaint);
-          setFormData({
-            dswId: '',
-            clientId: '',
-            typeOfProblem: cachedComplaint.typeOfProblem as ProblemType,
-            priority: cachedComplaint.priority,
-            description: cachedComplaint.description,
-            remarks: '',
-          });
-          setLoading(false);
-        } else {
-          // Fetch from API
-          const response = await complaintService.getById(complaintId);
-          if (response.complaint) {
-            const mappedComplaint = mapComplaintFromResponse(response.complaint);
-            setComplaint(mappedComplaint);
-            setComplaintInStore(complaintId, mappedComplaint);
+    if (complaintData) {
+      const mappedComplaint = mapComplaintFromResponse(complaintData as any);
+      setComplaint(mappedComplaint);
+      
+      // Extract DSW and Client IDs by matching names
+      const rawData = (complaintData as any)?.rawData || complaintData;
+      const complainantName = String(rawData?.['Complainant'] || rawData?.complainant || mappedComplaint.caretaker || '');
+      const complaintAgainst = String(rawData?.['Complaint Against'] || rawData?.complaint_against || '');
+      
+      // Find matching DSW ID by name (from "Complaint Against" field)
+      let foundDswId = '';
+      if (complaintAgainst && dsws.length > 0) {
+        const dswMatch = dsws.find(dsw => {
+          const dswName = dsw.name.toLowerCase();
+          const againstName = complaintAgainst.toLowerCase();
+          // Match if the name contains the DSW name or vice versa
+          return againstName.includes(dswName) || dswName.includes(againstName.split(' - ')[0]);
+        });
+        if (dswMatch) {
+          foundDswId = String(dswMatch.id);
+        }
+      }
+      
+      // Find matching Client ID by name (from "Complainant" field)
+      let foundClientId = '';
+      if (complainantName && clients.length > 0) {
+        const clientMatch = clients.find(client => {
+          const clientName = client.name.toLowerCase();
+          const complainant = complainantName.toLowerCase();
+          // Match if the name contains the client name or vice versa
+          return complainant.includes(clientName) || clientName.includes(complainant.split(' - ')[0]);
+        });
+        if (clientMatch) {
+          foundClientId = String(clientMatch.id);
+        }
+      }
+      
+      // Get type and priority IDs
+      const typeId = types.find((t: Record<string, unknown>) => 
+        (t.name as string)?.toLowerCase() === mappedComplaint.typeOfProblem.toLowerCase() || 
+        (t.code as string)?.toLowerCase() === mappedComplaint.typeOfProblem.toLowerCase()
+      );
+      
+      const priorityId = priorities.find((p: Record<string, unknown>) => 
+        (p.label as string)?.toLowerCase() === mappedComplaint.priority.toLowerCase() || 
+        (p.code as string)?.toLowerCase() === mappedComplaint.priority.toLowerCase()
+      );
+      
       setFormData({
-              dswId: '',
-              clientId: '',
+        dswId: foundDswId,
+        clientId: foundClientId,
               typeOfProblem: mappedComplaint.typeOfProblem as ProblemType,
               priority: mappedComplaint.priority,
               description: mappedComplaint.description,
-              remarks: '',
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching complaint:', error);
-        setToast({ message: 'Failed to load complaint', type: 'error' });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchComplaint();
-  }, [params.id, getComplaint, setComplaintInStore, isStale]);
-
-  // Fetch DSWs, Clients, Types, Priorities
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setFetching(true);
-        const [dswsResponse, clientsResponse, typesResponse, prioritiesResponse] = await Promise.all([
-          dswService.getAll().catch(() => []),
-          clientService.getAll().catch(() => []),
-          complaintService.getTypes().catch(() => ({ data: [] })),
-          complaintService.getPriorities().catch(() => ({ data: [] })),
-        ]);
-
-        const mappedDsws = Array.isArray(dswsResponse) ? dswsResponse.map((dsw: Record<string, unknown>) => ({
-          id: Number(dsw.id || 0),
-          name: String(dsw.name || dsw.first_name || dsw.username || ''),
-        })) : [];
-        setDsws(mappedDsws);
-
-        const mappedClients = Array.isArray(clientsResponse) ? clientsResponse.map((client: Record<string, unknown>) => ({
-          id: Number(client.id || 0),
-          name: String(client.name || client.first_name || client.username || ''),
-        })) : [];
-        setClients(mappedClients);
-
-        const apiTypes = typesResponse?.payload || typesResponse?.data || typesResponse;
-        setTypes(Array.isArray(apiTypes) ? apiTypes : []);
-
-        const apiPriorities = prioritiesResponse?.payload || prioritiesResponse?.data || prioritiesResponse;
-        setPriorities(Array.isArray(apiPriorities) ? apiPriorities : []);
-      } catch (error) {
-        console.error('Error fetching form data:', error);
-      } finally {
-        setFetching(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+        remarks: mappedComplaint.timeline?.[0]?.remarks || '',
+      });
+    }
+  }, [complaintData, dsws, clients, types, priorities]);
 
   // Filter DSWs and Clients
   const filteredDsws = dsws.filter(dsw =>
@@ -191,19 +167,27 @@ export default function EditComplaintPage() {
 
   // Get type ID from type name
   const getTypeId = (typeName: ProblemType): number | undefined => {
-    const type = types.find((t: Record<string, unknown>) => 
-      (t.name as string)?.toLowerCase() === typeName.toLowerCase() || 
-      (t.code as string)?.toLowerCase() === typeName.toLowerCase()
-    );
+    if (!typeName) return undefined;
+    const type = types.find((t: Record<string, unknown>) => {
+      const tName = (t.name as string)?.toLowerCase() || '';
+      const tCode = (t.code as string)?.toLowerCase() || '';
+      const searchName = typeName.toLowerCase();
+      return tName === searchName || tCode === searchName || 
+             (typeName === 'Late arrival' && (tName.includes('late') || tCode.includes('late')));
+    });
     return type?.id as number | undefined;
   };
 
   // Get priority ID from priority name
   const getPriorityId = (priorityName: Priority): number | undefined => {
-    const priority = priorities.find((p: Record<string, unknown>) => 
-      (p.label as string)?.toLowerCase() === priorityName.toLowerCase() || 
-      (p.code as string)?.toLowerCase() === priorityName.toLowerCase()
-    );
+    if (!priorityName) return undefined;
+    const priority = priorities.find((p: Record<string, unknown>) => {
+      const pLabel = (p.label as string)?.toLowerCase() || '';
+      const pCode = (p.code as string)?.toLowerCase() || '';
+      const pName = (p.name as string)?.toLowerCase() || '';
+      const searchName = priorityName.toLowerCase();
+      return pLabel === searchName || pCode === searchName || pName === searchName;
+    });
     return priority?.id as number | undefined;
   };
 
@@ -225,14 +209,21 @@ export default function EditComplaintPage() {
 
     setSubmitting(true);
     try {
-      const complaintId = typeof complaint.id === 'string' ? parseInt(complaint.id.replace('CMP-', '')) : complaint.id;
+      const complaintId = parseInt(numericId);
       
       const formDataToSend = new FormData();
       formDataToSend.append('complaint_id', String(complaintId));
       if (formData.dswId) formDataToSend.append('dsw_id', formData.dswId);
       if (formData.clientId) formDataToSend.append('client_id', formData.clientId);
       formDataToSend.append('description', formData.description);
-      formDataToSend.append('status_id', '1'); // Keep as Open for now
+      
+      // Get current status ID from complaint
+      const rawData = complaint.rawData || complaintData;
+      const history = (rawData?.history as Array<Record<string, unknown>>) || [];
+      const latestStatus = history.length > 0 ? history[history.length - 1]?.status as Record<string, unknown> : null;
+      const statusId = latestStatus?.id || 1; // Default to Open
+      formDataToSend.append('status_id', String(statusId));
+      
       formDataToSend.append('priority_id', String(priorityId));
       formDataToSend.append('type_id', String(typeId));
       formDataToSend.append('remarks', formData.remarks || `Complaint updated by ${currentUser?.name || 'provider'}`);
@@ -243,19 +234,12 @@ export default function EditComplaintPage() {
         formDataToSend.append('file', file);
       });
 
-      const response = await complaintService.update(formDataToSend);
+      await updateComplaintMutation.mutateAsync(formDataToSend);
       
-      if (response?.status || response?.message) {
-        // Refresh complaints list
-        useDashboardStore.setState({ complaintsLastFetched: null });
-        useComplaintDetailStore.setState({ lastFetched: { ...useComplaintDetailStore.getState().lastFetched, [String(complaintId)]: null } });
-        setToast({ message: response?.message || 'Complaint updated successfully!', type: 'success' });
+      setToast({ message: 'Complaint updated successfully!', type: 'success' });
         setTimeout(() => {
           router.push(`/provider/complaints/${complaint.id}`);
         }, 1500);
-      } else {
-        throw new Error('Failed to update complaint');
-      }
     } catch (error: any) {
       console.error('Error updating complaint:', error);
       setToast({ 
@@ -293,7 +277,9 @@ export default function EditComplaintPage() {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
-  if (loading || fetching) {
+  const isLoading = complaintLoading || dswsLoading || clientsLoading || typesLoading || prioritiesLoading;
+
+  if (isLoading) {
     return (
       <Layout role="provider">
         <div className="flex items-center justify-center min-h-[400px]">
@@ -303,7 +289,7 @@ export default function EditComplaintPage() {
     );
   }
 
-  if (!complaint) {
+  if (!complaintData || !complaint) {
     return (
       <Layout role="provider">
         <div className="text-center py-16">

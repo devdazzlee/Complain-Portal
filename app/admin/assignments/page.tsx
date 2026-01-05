@@ -16,16 +16,34 @@ import Loader from '../../components/Loader';
 import Toast from '../../components/Toast';
 import Pagination from '../../components/Pagination';
 import { useAssignmentStore } from '../../../lib/stores/assignmentStore';
+import { useAssignedComplaints } from '../../../lib/hooks/useAssignments';
+import { useQuery } from '@tanstack/react-query';
+import { complaintService } from '../../../lib/services';
 
 export default function AssignmentWorkflowPage() {
+  // Use React Query hook for assigned complaints (for the list below)
+  const { data: assignedComplaintsData = [], isLoading: assignedComplaintsLoading } = useAssignedComplaints();
+  
+  // Use React Query hook for all complaints (for the Select Complaint dropdown) - get raw API data
+  const { data: allComplaintsRawData, isLoading: allComplaintsLoading } = useQuery({
+    queryKey: ['complaints', 'all-raw'],
+    queryFn: async () => {
+      const response = await complaintService.getAll();
+      // Return raw complaints array from API
+      // Handle response structure: { status, message, complaints: [...] }
+      const complaints = response?.complaints || response?.data || response || [];
+      return Array.isArray(complaints) ? complaints : [];
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+  
   const {
-    unassignedComplaints,
     providers,
-    setUnassignedComplaints,
     setProviders,
-    isComplaintsStale,
     isProvidersStale,
   } = useAssignmentStore();
+  const [assignedComplaints, setAssignedComplaints] = useState<Complaint[]>([]);
+  const [allComplaints, setAllComplaints] = useState<Complaint[]>([]);
   const [selectedComplaint, setSelectedComplaint] = useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = useState('');
   const [loading, setLoading] = useState(true);
@@ -37,7 +55,7 @@ export default function AssignmentWorkflowPage() {
   const itemsPerPage = 10;
 
   // Map API complaint to Complaint interface
-  const mapComplaintFromAPI = useCallback((apiComplaint: Record<string, unknown>): Complaint => {
+  const mapComplaintFromAPI = useCallback((apiComplaint: Record<string, unknown>): Complaint & { complaintAgainst?: string } => {
     const history = apiComplaint.history as Array<Record<string, unknown>> | undefined;
     const latestHistory = history && history.length > 0 ? history[history.length - 1] : null;
     const status = latestHistory?.status as Record<string, unknown> | undefined;
@@ -45,10 +63,15 @@ export default function AssignmentWorkflowPage() {
     const priority = apiComplaint.priority as Record<string, unknown> | undefined;
     const files = apiComplaint.files as Array<Record<string, unknown>> | undefined;
 
+    // Extract Complainant and Complaint Against with proper field name handling
+    const complainant = apiComplaint['Complainant'] || apiComplaint.Complainant || apiComplaint.complainant || '';
+    const complaintAgainst = apiComplaint['Complaint Against'] || apiComplaint['Complaint Against'] || apiComplaint.complaint_against || '';
+    
     return {
       id: String(apiComplaint.id || ''),
       complaintId: `CMP-${apiComplaint.id || ''}`,
-      caretaker: String(apiComplaint['Complainant'] || apiComplaint.complainant || ''),
+      caretaker: String(complainant),
+      complaintAgainst: String(complaintAgainst),
       typeOfProblem: String(type?.name || type?.code || ''),
       description: String(apiComplaint.description || ''),
       status: String(status?.label || status?.code || 'Open'),
@@ -74,43 +97,106 @@ export default function AssignmentWorkflowPage() {
     };
   }, []);
 
-  // Fetch unassigned complaints and providers (only if stale)
+  // Map assigned complaints from API data (for the list section)
+  // This uses data from /assigned-to-other-complaints API
   useEffect(() => {
-    const fetchData = async () => {
-      const needComplaints = unassignedComplaints.length === 0 || isComplaintsStale();
+    if (!assignedComplaintsData) return;
+
+    // Handle different response structures
+    let complaintsArray: any[] = [];
+    if (Array.isArray(assignedComplaintsData)) {
+      complaintsArray = assignedComplaintsData;
+    } else if (assignedComplaintsData && typeof assignedComplaintsData === 'object') {
+      // If it's an object (like { "0": {...}, "1": {...} }), convert to array
+      if (assignedComplaintsData.complaints) {
+        const complaints = assignedComplaintsData.complaints;
+        if (Array.isArray(complaints)) {
+          complaintsArray = complaints;
+        } else if (complaints && typeof complaints === 'object') {
+          complaintsArray = Object.values(complaints);
+        }
+      } else if (assignedComplaintsData.data) {
+        const data = assignedComplaintsData.data;
+        if (Array.isArray(data)) {
+          complaintsArray = data;
+        } else if (data && typeof data === 'object') {
+          complaintsArray = Object.values(data);
+        }
+      } else {
+        // Direct object with numeric keys
+        complaintsArray = Object.values(assignedComplaintsData);
+      }
+    }
+
+    if (complaintsArray.length > 0) {
+      const mappedComplaints = complaintsArray.map(mapComplaintFromAPI);
+      // Only update if the mapped data is different
+      setAssignedComplaints(prev => {
+        // Check if arrays are the same length and have same IDs
+        if (prev.length === mappedComplaints.length) {
+          const prevIds = prev.map(c => c.id).sort().join(',');
+          const newIds = mappedComplaints.map(c => c.id).sort().join(',');
+          if (prevIds === newIds) {
+            return prev; // No change, return previous state
+          }
+        }
+        return mappedComplaints;
+      });
+    } else {
+      // Only clear if not already empty
+      setAssignedComplaints(prev => {
+        if (prev.length === 0) return prev;
+        return [];
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignedComplaintsData]);
+
+  // Map all complaints from API data (for the Select Complaint dropdown)
+  useEffect(() => {
+    if (!allComplaintsRawData) return;
+
+    // allComplaintsRawData should already be an array from the query
+    if (Array.isArray(allComplaintsRawData) && allComplaintsRawData.length > 0) {
+      const mappedComplaints = allComplaintsRawData.map(mapComplaintFromAPI);
+      // Only update if the mapped data is different
+      setAllComplaints(prev => {
+        // Check if arrays are the same length and have same IDs
+        if (prev.length === mappedComplaints.length) {
+          const prevIds = prev.map(c => c.id).sort().join(',');
+          const newIds = mappedComplaints.map(c => c.id).sort().join(',');
+          if (prevIds === newIds) {
+            return prev; // No change, return previous state
+          }
+        }
+        return mappedComplaints;
+      });
+    } else {
+      // Only clear if not already empty
+      setAllComplaints(prev => {
+        if (prev.length === 0) return prev;
+        return [];
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allComplaintsRawData]);
+
+  // Fetch providers (only if stale)
+  useEffect(() => {
+    const fetchProviders = async () => {
       const needProviders = providers.length === 0 || isProvidersStale();
 
-      if (!needComplaints && !needProviders) {
+      if (!needProviders) {
         setLoading(false);
         return;
       }
 
       try {
         setLoading(true);
-        const promises: Promise<unknown>[] = [];
-
-        if (needComplaints) {
-          promises.push(assignmentService.getUnassignedComplaints());
-        } else {
-          promises.push(Promise.resolve([]));
-        }
-
-        if (needProviders) {
-          promises.push(assignmentService.getProviders());
-        } else {
-          promises.push(Promise.resolve([]));
-        }
-
-        const [unassignedData, providersData] = await Promise.all(promises);
-
-        // Map unassigned complaints
-        if (needComplaints && Array.isArray(unassignedData)) {
-          const mappedComplaints = unassignedData.map(mapComplaintFromAPI);
-          setUnassignedComplaints(mappedComplaints);
-        }
+        const providersData = await assignmentService.getProviders();
 
         // Map providers
-        if (needProviders && Array.isArray(providersData)) {
+        if (Array.isArray(providersData)) {
           const mappedProviders = providersData.map((p: Record<string, unknown>) => ({
             id: Number(p.id || 0),
             name: String(p.first_name || p.name || p.username || '') + 
@@ -121,9 +207,9 @@ export default function AssignmentWorkflowPage() {
           setProviders(mappedProviders);
         }
       } catch (error) {
-        console.error('Error fetching assignment data:', error);
+        console.error('Error fetching providers:', error);
         setToast({ 
-          message: error instanceof Error ? error.message : 'Failed to load assignment data', 
+          message: error instanceof Error ? error.message : 'Failed to load providers', 
           type: 'error' 
         });
       } finally {
@@ -131,20 +217,32 @@ export default function AssignmentWorkflowPage() {
       }
     };
 
-    fetchData();
-  }, [mapComplaintFromAPI, unassignedComplaints.length, providers.length, isComplaintsStale, isProvidersStale, setUnassignedComplaints, setProviders]);
+    fetchProviders();
+  }, [providers.length, isProvidersStale, setProviders]);
 
-  // Filter complaints based on search
-  const filteredComplaints = useMemo(() => {
-    if (!complaintSearch.trim()) return unassignedComplaints;
+  // Filter complaints for the Select Complaint dropdown
+  const filteredComplaintsForSelect = useMemo(() => {
+    if (!complaintSearch.trim()) return allComplaints;
     const searchLower = complaintSearch.toLowerCase();
-    return unassignedComplaints.filter(complaint => 
+    return allComplaints.filter(complaint => 
       complaint.complaintId.toLowerCase().includes(searchLower) ||
       complaint.typeOfProblem.toLowerCase().includes(searchLower) ||
       complaint.caretaker.toLowerCase().includes(searchLower) ||
       (complaint.description && complaint.description.toLowerCase().includes(searchLower))
     );
-  }, [unassignedComplaints, complaintSearch]);
+  }, [allComplaints, complaintSearch]);
+
+  // Filter assigned complaints for the list section
+  const filteredAssignedComplaints = useMemo(() => {
+    if (!complaintSearch.trim()) return assignedComplaints;
+    const searchLower = complaintSearch.toLowerCase();
+    return assignedComplaints.filter(complaint => 
+      complaint.complaintId.toLowerCase().includes(searchLower) ||
+      complaint.typeOfProblem.toLowerCase().includes(searchLower) ||
+      complaint.caretaker.toLowerCase().includes(searchLower) ||
+      (complaint.description && complaint.description.toLowerCase().includes(searchLower))
+    );
+  }, [assignedComplaints, complaintSearch]);
 
   // Filter providers based on search
   const filteredProviders = useMemo(() => {
@@ -157,10 +255,10 @@ export default function AssignmentWorkflowPage() {
     );
   }, [providers, providerSearch]);
 
-  const totalPages = Math.ceil(unassignedComplaints.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredAssignedComplaints.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedComplaints = unassignedComplaints.slice(startIndex, endIndex);
+  const paginatedComplaints = filteredAssignedComplaints.slice(startIndex, endIndex);
 
   const handleAssign = async () => {
     if (!selectedComplaint || !selectedProvider) {
@@ -181,11 +279,8 @@ export default function AssignmentWorkflowPage() {
 
       await assignmentService.assignComplaint(complaintId, providerId, `Complaint assigned to ${provider.name}`);
 
-      // Refresh unassigned complaints (force refresh by clearing cache)
-      useAssignmentStore.setState({ lastFetchedComplaints: null });
-      const unassignedData = await assignmentService.getUnassignedComplaints();
-      const mappedComplaints = unassignedData.map(mapComplaintFromAPI);
-      setUnassignedComplaints(mappedComplaints);
+      // Refresh assigned complaints - React Query will handle this automatically
+      // The mutation will invalidate the query cache
 
       setToast({ message: `Complaint assigned to ${provider.name} successfully`, type: 'success' });
       setSelectedComplaint(null);
@@ -241,7 +336,15 @@ export default function AssignmentWorkflowPage() {
                 setComplaintSearch('');
               }}>
                 <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
-                  <SelectValue placeholder="Select a complaint..." />
+                  <SelectValue placeholder="Select a complaint...">
+                    {selectedComplaint ? (() => {
+                      const selected = allComplaints.find(c => c.id === selectedComplaint) as (Complaint & { complaintAgainst?: string }) | undefined;
+                      if (selected) {
+                        return `${selected.complaintId} - Complainant: ${selected.caretaker} - Complaint Against: ${selected.complaintAgainst || 'N/A'}`;
+                      }
+                      return 'Select a complaint...';
+                    })() : 'Select a complaint...'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
                   <div
@@ -280,15 +383,29 @@ export default function AssignmentWorkflowPage() {
                       </svg>
                     </div>
                   </div>
-                  {filteredComplaints.length > 0 ? (
-                    filteredComplaints.map(complaint => (
+                  {allComplaintsLoading ? (
+                    <div className="px-3 py-4 text-center" style={{ color: '#E6E6E6', opacity: 0.7 }}>
+                      Loading complaints...
+                    </div>
+                  ) : filteredComplaintsForSelect.length > 0 ? (
+                    filteredComplaintsForSelect.map(complaint => {
+                      const complaintWithAgainst = complaint as Complaint & { complaintAgainst?: string };
+                      // Get values directly - ensure we have the data
+                      const complainant = complaint.caretaker || 'N/A';
+                      const complaintAgainst = complaintWithAgainst.complaintAgainst || 'N/A';
+                      return (
                       <SelectItem key={complaint.id} value={complaint.id} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30] focus:outline-none focus:ring-0 focus:border-0 hover:outline-none hover:ring-0 hover:border-0">
-                        {complaint.complaintId} - {complaint.typeOfProblem}
-                      </SelectItem>
-                    ))
+                          <div className="flex flex-col py-1">
+                            <span className="font-semibold">{complaint.complaintId}</span>
+                            <span className="text-sm opacity-80 mt-0.5">Complainant: {complainant}</span>
+                            <span className="text-sm opacity-80">Complaint Against: {complaintAgainst}</span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })
                   ) : (
                     <div className="px-3 py-4 text-center" style={{ color: '#E6E6E6', opacity: 0.7 }}>
-                      No complaints found
+                      {complaintSearch ? 'No complaints found matching your search' : 'No complaints available'}
                     </div>
                   )}
                 </SelectContent>
@@ -379,15 +496,19 @@ export default function AssignmentWorkflowPage() {
           </div>
         </div>
 
-        {/* Unassigned Complaints List */}
+        {/* Assigned Complaints List */}
         <div className="rounded-lg p-4 md:p-6" style={{ backgroundColor: '#2A2B30' }}>
           <h2 className="text-xl md:text-2xl font-bold mb-4" style={{ color: '#E6E6E6' }}>
-            Unassigned Complaints ({unassignedComplaints.length})
+            Assigned Complaints ({assignedComplaints.length})
           </h2>
           
-          {unassignedComplaints.length === 0 ? (
+          {assignedComplaintsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader size="md" />
+            </div>
+          ) : assignedComplaints.length === 0 ? (
             <p className="text-base md:text-lg" style={{ color: '#E6E6E6', opacity: 0.7 }}>
-              All complaints have been assigned
+              No assigned complaints available
             </p>
           ) : (
             <>
@@ -420,13 +541,13 @@ export default function AssignmentWorkflowPage() {
                 </div>
               ))}
               </div>
-              {unassignedComplaints.length > itemsPerPage && (
+              {filteredAssignedComplaints.length > itemsPerPage && (
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
                   onPageChange={setCurrentPage}
                   itemsPerPage={itemsPerPage}
-                  totalItems={unassignedComplaints.length}
+                  totalItems={filteredAssignedComplaints.length}
                 />
               )}
             </>

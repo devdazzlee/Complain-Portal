@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '../context/AppContext';
+import { useComplaints, useSearchComplaints } from '../../lib/hooks';
 import { Complaint } from '../types';
+import Loader from './Loader';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -11,26 +13,53 @@ interface SearchModalProps {
 }
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
-  const { complaints, currentUser } = useApp();
+  const { currentUser } = useApp();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredComplaints, setFilteredComplaints] = useState<Complaint[]>([]);
-
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  
+  // Debounce search query
   useEffect(() => {
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      const filtered = complaints.filter(c => 
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+  
+  // Use React Query to search from API
+  const { data: allComplaints } = useComplaints();
+  const shouldSearch = debouncedQuery.trim().length > 0;
+  const { data: searchResults, isLoading: isSearching } = useSearchComplaints(
+    shouldSearch 
+      ? { general_search: debouncedQuery.trim() }
+      : { general_search: "" } // Will be disabled by hook
+  );
+  
+  // Determine which complaints to show
+  const filteredComplaints = useMemo(() => {
+    if (!debouncedQuery.trim()) {
+      return [];
+    }
+    
+    // If we have search results from API, use them
+    if (searchResults && searchResults.length > 0) {
+      return searchResults;
+    }
+    
+    // Fallback to client-side filtering from all complaints if API search returns empty
+    if (allComplaints && allComplaints.length > 0) {
+      const query = debouncedQuery.toLowerCase();
+      return allComplaints.filter(c => 
         c.complaintId.toLowerCase().includes(query) ||
         c.caretaker.toLowerCase().includes(query) ||
         c.typeOfProblem.toLowerCase().includes(query) ||
         c.description.toLowerCase().includes(query) ||
         c.status.toLowerCase().includes(query)
       );
-      setFilteredComplaints(filtered);
-    } else {
-      setFilteredComplaints([]);
     }
-  }, [searchQuery, complaints]);
+    
+    return [];
+  }, [debouncedQuery, searchResults, allComplaints]);
 
   const handleComplaintClick = (id: string) => {
     // Determine the correct route based on user role
@@ -74,7 +103,11 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
           {searchQuery && (
             <div className="max-h-96 overflow-y-auto">
-              {filteredComplaints.length === 0 ? (
+              {isSearching ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader size="md" />
+                </div>
+              ) : filteredComplaints.length === 0 ? (
                 <div className="text-center py-8">
                   <p style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>No complaints found</p>
                 </div>

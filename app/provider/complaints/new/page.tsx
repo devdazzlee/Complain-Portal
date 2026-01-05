@@ -11,20 +11,26 @@ import {
 } from '@/components/ui/select';
 import Layout from '../../../components/Layout';
 import { useApp } from '../../../context/AppContext';
-import { complaintService, dswService, clientService } from '../../../../lib/services';
+import { complaintService } from '../../../../lib/services';
 import { ProblemType, Priority, ComplaintCategory, FileAttachment } from '../../../types';
 import Loader from '../../../components/Loader';
 import Toast from '../../../components/Toast';
 import FileGallery from '../../../components/FileGallery';
 import { VoiceRecognition } from '../../../utils/voiceRecognition';
 import { useDashboardStore } from '../../../../lib/stores/dashboardStore';
+import { useDsws, useClients, useTypes, usePriorities, useAddType } from '../../../../lib/hooks';
 
-const problemTypes: { type: ProblemType; icon: string; label: string }[] = [
-  { type: 'Late arrival', icon: '🕐', label: 'Late arrival' },
-  { type: 'Behavior', icon: '😞', label: 'Behavior' },
-  { type: 'Missed service', icon: '💊', label: 'Missed service' },
-  { type: 'Other', icon: '🏠', label: 'Other' },
-];
+// Helper function to get icon for type code/name
+const getTypeIcon = (code: string, name: string): string => {
+  const codeLower = code.toLowerCase();
+  const nameLower = name.toLowerCase();
+  
+  if (codeLower.includes('late') || nameLower.includes('late')) return '🕐';
+  if (codeLower.includes('behavior') || nameLower.includes('behavior')) return '😞';
+  if (codeLower.includes('missed') || nameLower.includes('missed')) return '💊';
+  if (codeLower.includes('service') && !codeLower.includes('missed')) return '🏥';
+  return '🏠'; // Default icon for "Other" or unknown types
+};
 
 export default function NewComplaintPage() {
   const router = useRouter();
@@ -32,7 +38,6 @@ export default function NewComplaintPage() {
   const { setComplaints, isComplaintsStale } = useDashboardStore();
   const [pendingTemplateName, setPendingTemplateName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [formData, setFormData] = useState({
     dswId: '',
@@ -45,10 +50,6 @@ export default function NewComplaintPage() {
     tags: [] as string[],
     templateId: '',
   });
-  const [dsws, setDsws] = useState<Array<{ id: number | string; name: string }>>([]);
-  const [clients, setClients] = useState<Array<{ id: number | string; name: string }>>([]);
-  const [types, setTypes] = useState<Array<Record<string, unknown>>>([]);
-  const [priorities, setPriorities] = useState<Array<Record<string, unknown>>>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -60,55 +61,26 @@ export default function NewComplaintPage() {
   const voiceRecognitionRef = useRef<VoiceRecognition | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch DSWs, Clients, Types, Priorities on mount
+  // Use React Query hooks for non-blocking data fetching
+  const { data: dsws = [], isLoading: dswsLoading, error: dswsError } = useDsws();
+  const { data: clients = [], isLoading: clientsLoading, error: clientsError } = useClients();
+  const { data: types = [], isLoading: typesLoading, error: typesError } = useTypes();
+  const { data: priorities = [], isLoading: prioritiesLoading, error: prioritiesError } = usePriorities();
+
+  // Show toast if any data fails to load (non-blocking)
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setFetching(true);
-        const [dswsResponse, clientsResponse, typesResponse, prioritiesResponse] = await Promise.all([
-          dswService.getAll().catch(() => []),
-          clientService.getAll().catch(() => []),
-          complaintService.getTypes().catch(() => ({ data: [] })),
-          complaintService.getPriorities().catch(() => ({ data: [] })),
-        ]);
-
-        // Map DSWs
-        const mappedDsws = Array.isArray(dswsResponse) ? dswsResponse.map((dsw: Record<string, unknown>) => ({
-          id: Number(dsw.id || 0),
-          name: String(dsw.name || dsw.first_name || dsw.username || ''),
-        })) : [];
-        setDsws(mappedDsws);
-
-        // Map Clients
-        const mappedClients = Array.isArray(clientsResponse) ? clientsResponse.map((client: Record<string, unknown>) => ({
-          id: Number(client.id || 0),
-          name: String(client.name || client.first_name || client.username || ''),
-        })) : [];
-        setClients(mappedClients);
-
-        // Map Types
-        const apiTypes = typesResponse;
-        console.log('Types API Response:', typesResponse);
-        console.log('Mapped Types:', apiTypes);
-        setTypes(Array.isArray(apiTypes) ? apiTypes : []);
-
-        // Map Priorities
-        const apiPriorities = prioritiesResponse;
-        console.log('Priorities API Response:', prioritiesResponse);
-        console.log('Mapped Priorities:', apiPriorities);
-        setPriorities(Array.isArray(apiPriorities) ? apiPriorities : []);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setToast({ message: 'Failed to load form data', type: 'error' });
-      } finally {
-        setFetching(false);
+    if (dswsError || clientsError || typesError || prioritiesError) {
+      const errors = [dswsError, clientsError, typesError, prioritiesError].filter(Boolean);
+      if (errors.length > 0) {
+        setToast({ 
+          message: 'Some form data failed to load. You can still submit the form.', 
+          type: 'info' 
+        });
       }
-    };
+    }
+  }, [dswsError, clientsError, typesError, prioritiesError]);
 
-    fetchData();
-  }, []);
-
-  // Filter DSWs and Clients based on search
+  // Filter DSWs and Clients based on search (using React Query data)
   const filteredDsws = dsws.filter(dsw =>
     dsw.name.toLowerCase().includes(dswSearch.toLowerCase())
   );
@@ -346,17 +318,6 @@ export default function NewComplaintPage() {
       }
     );
   };
-
-
-  if (fetching) {
-    return (
-      <Layout role="provider">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Loader size="lg" />
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout role="provider">
@@ -636,7 +597,11 @@ export default function NewComplaintPage() {
                     </svg>
                   </div>
                 </div>
-                {filteredClients.length > 0 ? (
+                {clientsLoading ? (
+                  <div className="px-3 py-4 text-center" style={{ color: '#E6E6E6', opacity: 0.7 }}>
+                    Loading clients...
+                  </div>
+                ) : filteredClients.length > 0 ? (
                   filteredClients.map((client) => (
                     <SelectItem 
                       key={client.id} 
@@ -659,7 +624,7 @@ export default function NewComplaintPage() {
                   ))
                 ) : (
                   <SelectItem value="no-clients" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
-                    No clients found matching "{clientSearch}"
+                    {clientSearch ? `No clients found matching "${clientSearch}"` : 'No clients available'}
                   </SelectItem>
                 )}
               </SelectContent>

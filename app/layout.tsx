@@ -3,6 +3,7 @@ import { Poppins } from "next/font/google";
 import "./globals.css";
 import { AppProvider } from "./context/AppContext";
 import { LoadingProvider } from "./context/LoadingContext";
+import { QueryProvider } from "./providers/QueryProvider";
 import PageLoader from "./components/PageLoader";
 
 const poppins = Poppins({
@@ -26,12 +27,14 @@ export default function RootLayout({
       <body
         className={`${poppins.variable} antialiased`}
       >
-        <AppProvider>
-          <LoadingProvider>
-            <PageLoader />
-            {children}
-          </LoadingProvider>
-        </AppProvider>
+        <QueryProvider>
+          <AppProvider>
+            <LoadingProvider>
+              <PageLoader />
+              {children}
+            </LoadingProvider>
+          </AppProvider>
+        </QueryProvider>
       </body>
     </html>
   );

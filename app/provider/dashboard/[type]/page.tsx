@@ -4,8 +4,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Layout from "../../../components/Layout";
-import { useDashboardStore } from "../../../../lib/stores/dashboardStore";
-import { complaintService } from "../../../../lib/services";
+import { useComplaints } from "../../../../lib/hooks";
 import { ComplaintStatus, Complaint, ProblemType, Priority, FileAttachment, ComplaintTimelineItem } from "../../../types";
 import Pagination from "../../../components/Pagination";
 import Loader from "../../../components/Loader";
@@ -15,13 +14,13 @@ type CardType = "open" | "pending" | "resolved" | "refused";
 export default function DashboardDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { complaints: storeComplaints, setComplaints, isComplaintsStale } = useDashboardStore();
+  const { data: storeComplaints, isLoading: loading } = useComplaints();
   const type = params.type as CardType;
   const [currentPage, setCurrentPage] = useState(1);
-  const [loading, setLoading] = useState(true);
   const itemsPerPage = 10;
 
-  // Map complaints from API response (same as dashboard)
+  // Removed - now handled by React Query hooks
+  /* OLD CODE - REMOVED
   const mapComplaintsFromResponse = (complaintsResponse: any): Complaint[] => {
     const apiComplaints = complaintsResponse?.complaints || complaintsResponse?.payload || complaintsResponse?.data || complaintsResponse;
     const complaintsList = Array.isArray(apiComplaints) ? apiComplaints : [];
@@ -104,29 +103,9 @@ export default function DashboardDetailPage() {
       };
     });
   };
+  */
 
-  // Fetch complaints from API if stale or not available
-  useEffect(() => {
-    const fetchComplaints = async () => {
-      try {
-        if (isComplaintsStale() || storeComplaints.length === 0) {
-          setLoading(true);
-          const response = await complaintService.getAll();
-          const mappedComplaints = mapComplaintsFromResponse(response);
-          setComplaints(mappedComplaints);
-        }
-      } catch (error) {
-        console.error('Error fetching complaints:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchComplaints();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Use store complaints
+  // Use complaints from React Query
   const complaints = storeComplaints || [];
 
   const getFilteredComplaints = (cardType: CardType): Complaint[] => {
@@ -235,6 +214,11 @@ export default function DashboardDetailPage() {
   }
 
   const getStatusBadge = (status: ComplaintStatus) => {
+    // Don't render badge if status is empty or undefined
+    if (!status || status.trim() === '') {
+      return null;
+    }
+    
     if (status === "In Progress") {
       return (
         <span
@@ -509,14 +493,28 @@ export default function DashboardDetailPage() {
                           }}
                         >
                           <span className="font-semibold">Submitted:</span>{" "}
-                          {new Date(complaint.dateSubmitted).toLocaleDateString(
-                            "en-US",
-                            {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
+                          {(() => {
+                            // If dateSubmitted is already a formatted string, use it directly
+                            if (typeof complaint.dateSubmitted === 'string' && complaint.dateSubmitted !== 'Invalid Date') {
+                              // Check if it's already formatted (contains month name)
+                              if (complaint.dateSubmitted.includes('Jan') || complaint.dateSubmitted.includes('Feb') || 
+                                  complaint.dateSubmitted.includes('Mar') || complaint.dateSubmitted.includes('Apr') ||
+                                  complaint.dateSubmitted.includes('May') || complaint.dateSubmitted.includes('Jun') ||
+                                  complaint.dateSubmitted.includes('Jul') || complaint.dateSubmitted.includes('Aug') ||
+                                  complaint.dateSubmitted.includes('Sep') || complaint.dateSubmitted.includes('Oct') ||
+                                  complaint.dateSubmitted.includes('Nov') || complaint.dateSubmitted.includes('Dec')) {
+                                return complaint.dateSubmitted;
+                              }
+                              // Try to parse and format
+                              try {
+                                const date = new Date(complaint.dateSubmitted);
+                                if (!isNaN(date.getTime())) {
+                                  return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+                                }
+                              } catch {}
                             }
-                          )}
+                            return complaint.dateSubmitted || 'N/A';
+                          })()}
                         </p>
                         <p
                           style={{
@@ -752,14 +750,28 @@ export default function DashboardDetailPage() {
                           className="py-5 px-4"
                           style={{ color: "#E6E6E6", fontSize: "1rem" }}
                         >
-                          {new Date(complaint.dateSubmitted).toLocaleDateString(
-                            "en-US",
-                            {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
+                          {(() => {
+                            // If dateSubmitted is already a formatted string, use it directly
+                            if (typeof complaint.dateSubmitted === 'string' && complaint.dateSubmitted !== 'Invalid Date') {
+                              // Check if it's already formatted (contains month name)
+                              if (complaint.dateSubmitted.includes('Jan') || complaint.dateSubmitted.includes('Feb') || 
+                                  complaint.dateSubmitted.includes('Mar') || complaint.dateSubmitted.includes('Apr') ||
+                                  complaint.dateSubmitted.includes('May') || complaint.dateSubmitted.includes('Jun') ||
+                                  complaint.dateSubmitted.includes('Jul') || complaint.dateSubmitted.includes('Aug') ||
+                                  complaint.dateSubmitted.includes('Sep') || complaint.dateSubmitted.includes('Oct') ||
+                                  complaint.dateSubmitted.includes('Nov') || complaint.dateSubmitted.includes('Dec')) {
+                                return complaint.dateSubmitted;
+                              }
+                              // Try to parse and format
+                              try {
+                                const date = new Date(complaint.dateSubmitted);
+                                if (!isNaN(date.getTime())) {
+                                  return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+                                }
+                              } catch {}
                             }
-                          )}
+                            return complaint.dateSubmitted || 'N/A';
+                          })()}
                         </td>
                         <td className="py-5 px-4">
                           <button

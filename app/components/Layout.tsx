@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useApp } from '../context/AppContext';
+import { useNotifications } from '../../lib/hooks';
 import Logo from './Logo';
 import ProfileDropdown from './ProfileDropdown';
 import SearchModal from './SearchModal';
@@ -14,8 +15,19 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, role = 'provider' }: LayoutProps) {
-  const { currentUser, unreadCount } = useApp();
+  const { currentUser } = useApp();
+  const { data: notifications = [] } = useNotifications();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  
+  // Calculate unread count from real API data
+  // Handle different API response formats: is_read (boolean), isRead (boolean), or read (number 0/1)
+  const unreadCount = notifications.filter((n: any) => {
+    const isRead = n.is_read !== undefined ? n.is_read : 
+                   n.isRead !== undefined ? n.isRead : 
+                   n.read !== undefined ? n.read === 1 : 
+                   false;
+    return !isRead || isRead === 0 || isRead === false;
+  }).length;
 
   if (!currentUser) return <>{children}</>;
 

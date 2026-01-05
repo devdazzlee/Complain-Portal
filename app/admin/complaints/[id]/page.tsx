@@ -13,6 +13,7 @@ import { complaintService } from '../../../../lib/services';
 import { Complaint, ComplaintStatus, ProblemType, Priority, FileAttachment, ComplaintTimelineItem } from '../../../types';
 import { useDashboardStore } from '../../../../lib/stores/dashboardStore';
 import { useComplaintDetailStore } from '../../../../lib/stores/complaintDetailStore';
+import { useDeleteComplaint } from '../../../../lib/hooks';
 
 // Helper function to map complaint from API response (same as dashboard)
 const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint => {
@@ -90,12 +91,14 @@ export default function AdminComplaintDetailPage() {
   const router = useRouter();
   const { complaints: storeComplaints } = useDashboardStore();
   const { getComplaint, setComplaint: setComplaintInStore, isStale } = useComplaintDetailStore();
+  const deleteComplaintMutation = useDeleteComplaint();
   const [complaint, setComplaint] = useState<Complaint | null>(null);
   const [loading, setLoading] = useState(true);
   const [exportingPDF, setExportingPDF] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  
+  const deleting = deleteComplaintMutation.isPending;
 
   useEffect(() => {
     const fetchComplaint = async () => {
@@ -149,21 +152,24 @@ export default function AdminComplaintDetailPage() {
   }, [params.id, storeComplaints, getComplaint, setComplaintInStore, isStale]);
 
   const handleDelete = async () => {
+    if (!complaint) return;
+    
     try {
-      setDeleting(true);
-      const complaintId = typeof complaint?.id === 'string' ? parseInt(complaint.id.replace('CMP-', '')) : complaint?.id;
+      const complaintId = typeof complaint.id === 'string' ? parseInt(complaint.id.replace('CMP-', '')) : complaint.id;
       if (complaintId) {
-        await complaintService.delete(complaintId);
+        await deleteComplaintMutation.mutateAsync(complaintId);
         setToast({ message: 'Complaint deleted successfully', type: 'success' });
         setTimeout(() => {
           router.push('/admin/dashboard');
         }, 1500);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting complaint:', error);
-      setToast({ message: 'Failed to delete complaint', type: 'error' });
+      setToast({ 
+        message: error?.response?.data?.message || error?.message || 'Failed to delete complaint', 
+        type: 'error' 
+      });
     } finally {
-      setDeleting(false);
       setShowDeleteConfirm(false);
     }
   };

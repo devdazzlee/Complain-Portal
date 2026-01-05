@@ -11,26 +11,31 @@ import {
 } from '@/components/ui/select';
 import Layout from '../../../components/Layout';
 import { useApp } from '../../../context/AppContext';
-import { complaintService, dswService, clientService } from '../../../../lib/services';
+import { complaintService } from '../../../../lib/services';
 import { ProblemType, Priority } from '../../../types';
 import Loader from '../../../components/Loader';
 import Toast from '../../../components/Toast';
 import FileGallery from '../../../components/FileGallery';
 import { useDashboardStore } from '../../../../lib/stores/dashboardStore';
+import { useDsws, useClients, useTypes, usePriorities, useAddType } from '../../../../lib/hooks';
 
-const problemTypes: { type: ProblemType; icon: string; label: string }[] = [
-  { type: 'Late arrival', icon: '🕐', label: 'Late arrival' },
-  { type: 'Behavior', icon: '😞', label: 'Behavior' },
-  { type: 'Missed service', icon: '💊', label: 'Missed service' },
-  { type: 'Other', icon: '🏠', label: 'Other' },
-];
+// Helper function to get icon for type code/name
+const getTypeIcon = (code: string, name: string): string => {
+  const codeLower = code.toLowerCase();
+  const nameLower = name.toLowerCase();
+  
+  if (codeLower.includes('late') || nameLower.includes('late')) return '🕐';
+  if (codeLower.includes('behavior') || nameLower.includes('behavior')) return '😞';
+  if (codeLower.includes('missed') || nameLower.includes('missed')) return '💊';
+  if (codeLower.includes('service') && !codeLower.includes('missed')) return '🏥';
+  return '🏠'; // Default icon for "Other" or unknown types
+};
 
 export default function NewComplaintPage() {
   const router = useRouter();
   const { currentUser } = useApp();
   const { setComplaints, isComplaintsStale } = useDashboardStore();
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [formData, setFormData] = useState({
     dswId: '',
@@ -40,59 +45,30 @@ export default function NewComplaintPage() {
     description: '',
     remarks: '',
   });
-  const [dsws, setDsws] = useState<Array<{ id: number | string; name: string }>>([]);
-  const [clients, setClients] = useState<Array<{ id: number | string; name: string }>>([]);
-  const [types, setTypes] = useState<Array<Record<string, unknown>>>([]);
-  const [priorities, setPriorities] = useState<Array<Record<string, unknown>>>([]);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dswSearch, setDswSearch] = useState('');
   const [clientSearch, setClientSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch DSWs, Clients, Types, Priorities on mount
+  // Use React Query hooks for non-blocking data fetching
+  const { data: dsws = [], isLoading: dswsLoading, error: dswsError } = useDsws();
+  const { data: clients = [], isLoading: clientsLoading, error: clientsError } = useClients();
+  const { data: types = [], isLoading: typesLoading, error: typesError } = useTypes();
+  const { data: priorities = [], isLoading: prioritiesLoading, error: prioritiesError } = usePriorities();
+
+  // Show toast if any data fails to load (non-blocking)
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setFetching(true);
-        const [dswsResponse, clientsResponse, typesResponse, prioritiesResponse] = await Promise.all([
-          dswService.getAll().catch(() => []),
-          clientService.getAll().catch(() => []),
-          complaintService.getTypes().catch(() => ({ data: [] })),
-          complaintService.getPriorities().catch(() => ({ data: [] })),
-        ]);
-
-        // Map DSWs
-        const mappedDsws = Array.isArray(dswsResponse) ? dswsResponse.map((dsw: Record<string, unknown>) => ({
-          id: Number(dsw.id || 0),
-          name: String(dsw.name || dsw.first_name || dsw.username || ''),
-        })) : [];
-        setDsws(mappedDsws);
-
-        // Map Clients
-        const mappedClients = Array.isArray(clientsResponse) ? clientsResponse.map((client: Record<string, unknown>) => ({
-          id: Number(client.id || 0),
-          name: String(client.name || client.first_name || client.username || ''),
-        })) : [];
-        setClients(mappedClients);
-
-        // Map Types
-        const apiTypes = typesResponse?.payload || typesResponse?.data || typesResponse;
-        setTypes(Array.isArray(apiTypes) ? apiTypes : []);
-
-        // Map Priorities
-        const apiPriorities = prioritiesResponse?.payload || prioritiesResponse?.data || prioritiesResponse;
-        setPriorities(Array.isArray(apiPriorities) ? apiPriorities : []);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setToast({ message: 'Failed to load form data', type: 'error' });
-      } finally {
-        setFetching(false);
+    if (dswsError || clientsError || typesError || prioritiesError) {
+      const errors = [dswsError, clientsError, typesError, prioritiesError].filter(Boolean);
+      if (errors.length > 0) {
+        setToast({ 
+          message: 'Some form data failed to load. You can still submit the form.', 
+          type: 'info' 
+        });
       }
-    };
-
-    fetchData();
-  }, []);
+    }
+  }, [dswsError, clientsError, typesError, prioritiesError]);
 
   // Filter DSWs and Clients based on search
   const filteredDsws = dsws.filter(dsw =>
@@ -103,11 +79,19 @@ export default function NewComplaintPage() {
     client.name.toLowerCase().includes(clientSearch.toLowerCase())
   );
 
-  // Get type ID from type name
-  const getTypeId = (typeName: ProblemType): number | undefined => {
+  // Get type ID from type name or ID
+  const getTypeId = (typeValue: string): number | undefined => {
+    // If it's already a number (ID), return it
+    const numericId = parseInt(typeValue, 10);
+    if (!isNaN(numericId)) {
+      const type = types.find((t: Record<string, unknown>) => t.id === numericId);
+      return type?.id as number | undefined;
+    }
+    
+    // Otherwise, search by name or code
     const type = types.find((t: Record<string, unknown>) => 
-      (t.name as string)?.toLowerCase() === typeName.toLowerCase() || 
-      (t.code as string)?.toLowerCase() === typeName.toLowerCase()
+      (t.name as string)?.toLowerCase() === typeValue.toLowerCase() || 
+      (t.code as string)?.toLowerCase() === typeValue.toLowerCase()
     );
     return type?.id as number | undefined;
   };
@@ -208,15 +192,8 @@ export default function NewComplaintPage() {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-  if (fetching) {
-    return (
-      <Layout role="admin">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Loader size="lg" />
-        </div>
-      </Layout>
-    );
-  }
+  // Don't block the UI - show form immediately, data loads in background
+  // Form fields will show loading states individually if needed
 
   return (
     <Layout role="admin">
@@ -378,36 +355,54 @@ export default function NewComplaintPage() {
           {/* Type of Problem */}
           <div>
             <label className="block mb-4" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Choose one of the options *</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-              {problemTypes.map((pt) => (
-                <button
-                  key={pt.type}
-                  type="button"
-                  onClick={() => setFormData({ ...formData, typeOfProblem: pt.type })}
-                  className="rounded-lg border-2 transition-all"
-                  style={{
-                    borderColor: formData.typeOfProblem === pt.type ? '#2AB3EE' : '#E6E6E6',
-                    backgroundColor: formData.typeOfProblem === pt.type ? 'rgba(42, 179, 238, 0.2)' : 'transparent',
-                    borderWidth: '2px',
-                    padding: '20px 16px',
-                    minHeight: '100px'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (formData.typeOfProblem !== pt.type) {
-                      e.currentTarget.style.borderColor = '#2AB3EE';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (formData.typeOfProblem !== pt.type) {
-                      e.currentTarget.style.borderColor = '#E6E6E6';
-                    }
-                  }}
-                >
-                  <div className="text-3xl md:text-4xl mb-2">{pt.icon}</div>
-                  <div style={{ color: '#E6E6E6', fontSize: '1rem', fontWeight: 500 }}>{pt.label}</div>
-                </button>
-              ))}
-            </div>
+            {typesLoading ? (
+              <div className="text-center py-8">
+                <p style={{ color: '#E6E6E6', opacity: 0.7 }}>Loading types...</p>
+              </div>
+            ) : types.length === 0 ? (
+              <div className="text-center py-8">
+                <p style={{ color: '#E6E6E6', opacity: 0.7 }}>No types available</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                {types.map((type: Record<string, unknown>) => {
+                  const typeId = String(type.id || '');
+                  const typeName = String(type.name || type.code || '');
+                  const typeCode = String(type.code || '');
+                  const isSelected = formData.typeOfProblem === typeId || formData.typeOfProblem === typeName;
+                  const icon = getTypeIcon(typeCode, typeName);
+                  
+                  return (
+                    <button
+                      key={typeId}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, typeOfProblem: typeId })}
+                      className="rounded-lg border-2 transition-all"
+                      style={{
+                        borderColor: isSelected ? '#2AB3EE' : '#E6E6E6',
+                        backgroundColor: isSelected ? 'rgba(42, 179, 238, 0.2)' : 'transparent',
+                        borderWidth: '2px',
+                        padding: '20px 16px',
+                        minHeight: '100px'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = '#2AB3EE';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = '#E6E6E6';
+                        }
+                      }}
+                    >
+                      <div className="text-3xl md:text-4xl mb-2">{icon}</div>
+                      <div style={{ color: '#E6E6E6', fontSize: '1rem', fontWeight: 500 }}>{typeName}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Priority */}
@@ -618,6 +613,7 @@ export default function NewComplaintPage() {
     </Layout>
   );
 }
+
 
 
 

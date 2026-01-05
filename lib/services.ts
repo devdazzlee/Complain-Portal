@@ -96,6 +96,7 @@ export const complaintService = {
     type_id?: number;
     starting_date?: string;
     end_date?: string;
+    sort_by?: number;
   }) {
     const response = await api.post('advance-search-complaints', filters);
     return response.data;
@@ -135,6 +136,14 @@ export const complaintService = {
     // API returns { status: true, message: "all Types.", types: [...] }
     const types = response.data?.types || response.data?.payload || response.data?.data || response.data || [];
     return Array.isArray(types) ? types : [];
+  },
+
+  /**
+   * Add a new type
+   */
+  async addType(name: string) {
+    const response = await api.post('add-type', { name });
+    return response.data;
   },
 
   /**
@@ -352,22 +361,47 @@ export const clientService = {
 // Assignment Workflow Service
 export const assignmentService = {
   /**
-   * Get unassigned complaints (complaints with status "open" and no handler)
+   * Get assigned complaints (complaints assigned to other providers)
+   */
+  async getAssignedComplaints() {
+    const response = await api.get('assigned-to-other-complaints');
+    const complaints = response.data?.complaints || response.data?.data || response.data;
+    
+    // Handle different response structures
+    if (Array.isArray(complaints)) {
+      return complaints;
+    } else if (complaints && typeof complaints === 'object') {
+      // If complaints is an object (like { "0": {...}, "1": {...} }), convert to array
+      return Object.values(complaints);
+    }
+    
+    return [];
+  },
+
+  /**
+   * Get unassigned complaints (complaints with status "open")
+   * Note: Shows all open complaints for assignment workflow
    */
   async getUnassignedComplaints() {
     const response = await api.get('all-complaints');
     const complaints = response.data?.complaints || response.data?.data || [];
     const complaintsList = Array.isArray(complaints) ? complaints : [];
     
-    // Filter for unassigned complaints (status is "open" and no handler)
+    // Filter for open complaints (can be assigned/reassigned)
+    // Check the latest history entry for status
     return complaintsList.filter((c: Record<string, unknown>) => {
       const history = c.history as Array<Record<string, unknown>> | undefined;
-      const latestHistory = history && history.length > 0 ? history[history.length - 1] : null;
+      if (!history || history.length === 0) {
+        // If no history, consider it open/unassigned
+        return true;
+      }
+      
+      const latestHistory = history[history.length - 1];
       const status = latestHistory?.status as Record<string, unknown> | undefined;
       const statusCode = status?.code as string | undefined;
-      const handler = latestHistory?.['Case Handle By'] as string | undefined;
       
-      return statusCode === 'open' && (!handler || handler === null || handler === '');
+      // Show complaints with status "open" (can be assigned or reassigned)
+      return statusCode === 'open';
     });
   },
 
@@ -390,6 +424,67 @@ export const assignmentService = {
       current_handler_id: handlerId,
       status_id: 1, // Keep status as "open" when assigning
       remarks: remarks || `Complaint assigned to handler ${handlerId}`,
+    });
+    return response.data;
+  },
+};
+
+// Comment Service
+export const commentService = {
+  /**
+   * Add a comment to a complaint
+   */
+  async addComment(complaintId: string | number, commentBy: number, comment: string) {
+    const formData = new FormData();
+    formData.append('complaint_id', String(complaintId));
+    formData.append('comment_by', String(commentBy));
+    formData.append('comment', comment);
+
+    const response = await api.post('add-complaint-comment', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get all comments for complaints
+   */
+  async getComments() {
+    const response = await api.post('get-user-comments');
+    return response.data;
+  },
+
+  /**
+   * Update a comment
+   */
+  async updateComment(complaintId: string | number, commentBy: number, comment: string) {
+    const formData = new FormData();
+    formData.append('complaint_id', String(complaintId));
+    formData.append('comment_by', String(commentBy));
+    formData.append('comment', comment);
+
+    const response = await api.post('update-complaint-comment', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Delete a comment
+   */
+  async deleteComment(complaintId: string | number, commentBy: number) {
+    const formData = new FormData();
+    formData.append('complaint_id', String(complaintId));
+    formData.append('comment_by', String(commentBy));
+
+    const response = await api.post('delete-complaint-comment', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
     return response.data;
   },

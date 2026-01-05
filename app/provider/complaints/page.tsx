@@ -38,7 +38,35 @@ const mapComplaintsFromResponse = (response: Record<string, unknown>): Complaint
       description: String(item.description || ''),
       status: String(status?.label || status?.code || 'Open') as ComplaintStatus,
       priority: String(priority?.label || priority?.code || 'Low') as Priority,
-      dateSubmitted: latestHistory ? new Date(String(latestHistory.created_at || '')).toLocaleDateString() : new Date().toLocaleDateString(),
+      dateSubmitted: (() => {
+        // Helper to safely format dates
+        const formatDate = (dateString: string | undefined | null): string => {
+          if (!dateString) return '';
+          try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '';
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          } catch {
+            return '';
+          }
+        };
+        
+        // Try to get date from item first, then history
+        const createdAt = item.created_at as string || item.createdAt as string || '';
+        if (createdAt) {
+          const formatted = formatDate(createdAt);
+          if (formatted) return formatted;
+        }
+        
+        // Try first history entry
+        if (history.length > 0 && history[0].created_at) {
+          const formatted = formatDate(String(history[0].created_at));
+          if (formatted) return formatted;
+        }
+        
+        // Fallback to current date
+        return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      })(),
       assignedTo: String(latestHistory?.['Case Handle By'] || ''),
       attachments: files?.map((f: Record<string, unknown>) => ({
         id: String(f.id || ''),
@@ -277,12 +305,14 @@ export default function ComplaintsListPage() {
                       <div className="shrink-0">
                         <PriorityBadge priority={complaint.priority} />
                       </div>
-                      <span
-                        className="px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-semibold whitespace-nowrap"
-                        style={{ backgroundColor: getStatusColor(complaint.status), color: '#E6E6E6' }}
-                      >
-                        {complaint.status}
-                      </span>
+                      {complaint.status && (
+                        <span
+                          className="px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-semibold whitespace-nowrap"
+                          style={{ backgroundColor: getStatusColor(complaint.status), color: '#E6E6E6' }}
+                        >
+                          {complaint.status}
+                        </span>
+                      )}
                     </div>
                     <p className="text-base md:text-lg mb-2 break-words" style={{ color: '#E6E6E6', opacity: 0.8 }}>
                       {complaint.description}
