@@ -112,8 +112,8 @@ export default function ReportsPage() {
     });
     
     // Calculate average response time (placeholder - adjust based on actual API data)
-    const avgResponse = reportData?.average_response_time || apiData?.average_response_time || 0;
-    const avgResolution = reportData?.average_resolution_time || apiData?.average_resolution_time || 0;
+    const avgResponse = Number(reportData?.average_response_time || apiData?.average_response_time || 0);
+    const avgResolution = Number(reportData?.average_resolution_time || apiData?.average_resolution_time || 0);
     
     // Calculate resolved count from status counts (look for "Resolved" or "resolved" status)
     const resolvedCount = complaintsByStatus['Resolved'] || complaintsByStatus['resolved'] || 0;
@@ -123,6 +123,8 @@ export default function ReportsPage() {
       resolved: resolvedCount,
       avgResponse: avgResponse,
       avgResolution: avgResolution,
+      averageResponseTime: avgResponse, // Also include for UI compatibility
+      averageResolutionTime: avgResolution, // Also include for UI compatibility
       complaintsByStatus: complaintsByStatus,
       complaintsByCategory: complaintsByCategory,
       complaintsByPriority: complaintsByPriority,
