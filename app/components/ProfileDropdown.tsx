@@ -57,11 +57,11 @@ export default function ProfileDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl z-50 border" style={{ backgroundColor: '#2A2B30', borderColor: '#E6E6E6', borderWidth: '2px' }}>
+        <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl z-50 border overflow-hidden" style={{ backgroundColor: '#2A2B30', borderColor: '#E6E6E6', borderWidth: '2px' }}>
           <div className="py-2">
-            <div className="px-5 py-4 border-b" style={{ borderColor: '#E6E6E6', borderWidth: '0 0 1px 0' }}>
-              <p className="font-semibold" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>{currentUser?.name}</p>
-              <p className="mt-1" style={{ color: '#E6E6E6', opacity: 0.7, fontSize: '1rem' }}>{currentUser?.email}</p>
+            <div className="px-5 py-4 border-b overflow-hidden" style={{ borderColor: '#E6E6E6', borderWidth: '0 0 1px 0' }}>
+              <p className="font-semibold truncate" style={{ color: '#E6E6E6', fontSize: '1.125rem' }}>{currentUser?.name}</p>
+              <p className="mt-1 truncate" style={{ color: '#E6E6E6', opacity: 0.7, fontSize: '1rem' }}>{currentUser?.email}</p>
             </div>
             
             <button

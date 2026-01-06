@@ -8,6 +8,9 @@ export const dashboardKeys = {
   stats: () => [...dashboardKeys.all, "stats"] as const,
   roles: () => [...dashboardKeys.all, "roles"] as const,
   users: (name?: string) => [...dashboardKeys.all, "users", name] as const,
+  usersNoLimit: () => [...dashboardKeys.all, "users", "no-limit"] as const,
+  admins: () => [...dashboardKeys.all, "users", "admins"] as const,
+  providers: () => [...dashboardKeys.all, "users", "providers"] as const,
 };
 
 // Hook to get dashboard stats

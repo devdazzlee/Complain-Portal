@@ -13,6 +13,10 @@ export const complaintKeys = {
   types: () => [...complaintKeys.all, "types"] as const,
   priorities: () => [...complaintKeys.all, "priorities"] as const,
   sortBy: () => [...complaintKeys.all, "sortBy"] as const,
+  open: () => [...complaintKeys.all, "open"] as const,
+  pending: () => [...complaintKeys.all, "pending"] as const,
+  resolved: () => [...complaintKeys.all, "resolved"] as const,
+  refused: () => [...complaintKeys.all, "refused"] as const,
 };
 
 // Map complaints from API response
@@ -273,6 +277,54 @@ export function useDeleteComplaint() {
       // Invalidate complaints list
       queryClient.invalidateQueries({ queryKey: complaintKeys.lists() });
     },
+  });
+}
+
+// Hook to get all open complaints
+export function useOpenComplaints() {
+  return useQuery({
+    queryKey: complaintKeys.open(),
+    queryFn: async () => {
+      const response = await complaintService.getOpenComplaints();
+      return mapComplaintsFromResponse(response);
+    },
+    staleTime: 1 * 60 * 1000, // 1 minute
+  });
+}
+
+// Hook to get all pending complaints
+export function usePendingComplaints() {
+  return useQuery({
+    queryKey: complaintKeys.pending(),
+    queryFn: async () => {
+      const response = await complaintService.getPendingComplaints();
+      return mapComplaintsFromResponse(response);
+    },
+    staleTime: 1 * 60 * 1000, // 1 minute
+  });
+}
+
+// Hook to get all resolved complaints
+export function useResolvedComplaints() {
+  return useQuery({
+    queryKey: complaintKeys.resolved(),
+    queryFn: async () => {
+      const response = await complaintService.getResolvedComplaints();
+      return mapComplaintsFromResponse(response);
+    },
+    staleTime: 1 * 60 * 1000, // 1 minute
+  });
+}
+
+// Hook to get all refused complaints
+export function useRefusedComplaints() {
+  return useQuery({
+    queryKey: complaintKeys.refused(),
+    queryFn: async () => {
+      const response = await complaintService.getRefusedComplaints();
+      return mapComplaintsFromResponse(response);
+    },
+    staleTime: 1 * 60 * 1000, // 1 minute
   });
 }
 

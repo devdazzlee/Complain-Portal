@@ -165,6 +165,38 @@ export const complaintService = {
     const response = await api.get('sort_by');
     return response.data;
   },
+
+  /**
+   * Get all open complaints
+   */
+  async getOpenComplaints() {
+    const response = await api.get('all-open-complaints');
+    return response.data;
+  },
+
+  /**
+   * Get all pending complaints
+   */
+  async getPendingComplaints() {
+    const response = await api.get('all-pending-complaints');
+    return response.data;
+  },
+
+  /**
+   * Get all resolved complaints
+   */
+  async getResolvedComplaints() {
+    const response = await api.get('all-resolved-complaints');
+    return response.data;
+  },
+
+  /**
+   * Get all refused complaints
+   */
+  async getRefusedComplaints() {
+    const response = await api.get('all-refused-complaints');
+    return response.data;
+  },
 };
 
 // Notifications Service
@@ -303,6 +335,30 @@ export const userManagementService = {
     
     // For now, return success (handled client-side if needed)
     return { status: true, message: 'User deleted successfully' };
+  },
+
+  /**
+   * Get all users with no limit
+   */
+  async getAllUsersNoLimit() {
+    const response = await api.get('all-users-no-limit');
+    return response.data;
+  },
+
+  /**
+   * Get all admins
+   */
+  async getAllAdmins() {
+    const response = await api.get('all-users', { params: { admins: 1 } });
+    return response.data;
+  },
+
+  /**
+   * Get all providers
+   */
+  async getAllProviders() {
+    const response = await api.get('all-users', { params: { providers: 1 } });
+    return response.data;
   },
 };
 
