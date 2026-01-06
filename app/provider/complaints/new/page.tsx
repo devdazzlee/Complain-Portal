@@ -736,21 +736,22 @@ export default function NewComplaintPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {attachments.map((file, index) => (
                     <div key={index} className="relative rounded-lg p-3 hover:bg-opacity-80 transition-all" style={{ backgroundColor: '#2A2B30', border: '1px solid #4A4B50' }}>
-                      <div className="flex items-start justify-between mb-2">
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(index)}
+                        className="absolute top-1 right-1 p-1 hover:opacity-70 transition-opacity z-10"
+                        style={{ color: '#FFFFFF' }}
+                        aria-label="Remove file"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                      <div className="flex items-start justify-between mb-2 pr-6">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm truncate font-medium" style={{ color: '#E6E6E6' }} title={file.name}>{file.name}</p>
                           <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeAttachment(index)}
-                          className="ml-2 p-1 rounded hover:bg-red-500/20 transition-colors flex-shrink-0"
-                          style={{ color: '#EF4444' }}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
                       </div>
                       <div className="flex items-center text-xs" style={{ color: '#6B7280' }}>
                         <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

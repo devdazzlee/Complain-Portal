@@ -46,7 +46,7 @@ function UserManagementContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [editingUser, setEditingUser] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', email: '', role: 'provider' as 'provider' | 'admin', roleId: 0 });
+  const [editForm, setEditForm] = useState({ email: '', role: 'provider' as 'provider' | 'admin', roleId: 0 });
   const [currentPage, setCurrentPage] = useState(1);
   const [updating, setUpdating] = useState(false);
   const itemsPerPage = 10;
@@ -247,7 +247,6 @@ function UserManagementContent() {
     const roleId = user.roleId || roles.find(r => r.name.toLowerCase() === user.role.toLowerCase())?.id || 0;
     const role = roles.find(r => r.id === roleId);
     setEditForm({ 
-      name: user.name, 
       email: user.email, 
       role: role?.name.toLowerCase() === 'admin' ? 'admin' : 'provider',
       roleId: roleId,
@@ -271,6 +270,8 @@ function UserManagementContent() {
         return;
       }
 
+      // Based on Postman API example, update-list-user only accepts: user_id, email, role_id
+      // Name field is not supported by this endpoint
       await userManagementService.updateUser(userId, {
         email: editForm.email || null,
         role_id: editForm.roleId,
@@ -297,7 +298,7 @@ function UserManagementContent() {
 
   const handleCancel = () => {
     setEditingUser(null);
-    setEditForm({ name: '', email: '', role: 'provider', roleId: 0 });
+    setEditForm({ email: '', role: 'provider', roleId: 0 });
   };
 
   if (loading) {
@@ -401,15 +402,6 @@ function UserManagementContent() {
                 >
                   {editingUser === user.id ? (
                     <div className="space-y-4">
-                      <div>
-                        <label className="block mb-2 text-base font-semibold" style={{ color: '#E6E6E6' }}>Name</label>
-                        <input
-                          type="text"
-                          value={editForm.name}
-                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                          className="w-full bg-[#2A2B30] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base px-4 py-3 rounded-lg focus:border-[#2AB3EE] focus:ring-0 outline-none"
-                        />
-                      </div>
                       <div>
                         <label className="block mb-2 text-base font-semibold" style={{ color: '#E6E6E6' }}>Email</label>
                         <input

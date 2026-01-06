@@ -26,8 +26,8 @@ const problemTypes: { type: ProblemType; icon: string; label: string }[] = [
   { type: 'Other', icon: '🏠', label: 'Other' },
 ];
 
-// Helper function to map complaint from API response
-const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint => {
+// Helper function to map complaint from API response with raw data preserved
+const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint & { rawData?: Record<string, unknown> } => {
   const history = (item.history as Array<Record<string, unknown>>) || [];
   const latestHistory = history.length > 0 ? history[history.length - 1] : null;
   const status = latestHistory?.status as Record<string, unknown> | undefined;
@@ -67,7 +67,8 @@ const mapComplaintFromResponse = (item: Record<string, unknown>): Complaint => {
         userName: String(h['Case Handle By'] || h.handler || ''),
       };
     }) || [],
-  };
+    rawData: item, // Preserve raw API data for extracting IDs
+  } as Complaint & { rawData?: Record<string, unknown> };
 };
 
 export default function EditComplaintPage() {
@@ -108,11 +109,14 @@ export default function EditComplaintPage() {
       setComplaint(mappedComplaint);
       
       // Extract DSW and Client IDs directly from API response
-      const rawData = (complaintData as any)?.rawData || complaintData;
+      // Use the raw complaintData directly (it contains worker_id and client_id)
+      const rawData = complaintData as any;
       
-      // Try to get IDs directly from API response (check multiple possible field names)
+      // Get DSW ID - API returns worker_id
       let foundDswId = '';
-      if (rawData?.dsw_id) {
+      if (rawData?.worker_id) {
+        foundDswId = String(rawData.worker_id);
+      } else if (rawData?.dsw_id) {
         foundDswId = String(rawData.dsw_id);
       } else if (rawData?.dswId) {
         foundDswId = String(rawData.dswId);
@@ -133,6 +137,7 @@ export default function EditComplaintPage() {
         }
       }
       
+      // Get Client ID - API returns client_id
       let foundClientId = '';
       if (rawData?.client_id) {
         foundClientId = String(rawData.client_id);

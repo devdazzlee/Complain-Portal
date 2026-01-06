@@ -279,6 +279,8 @@ export const userManagementService = {
 
   /**
    * Update user
+   * Note: Based on API documentation, update-list-user only accepts: user_id, email, role_id
+   * Name fields are not supported by this endpoint
    */
   async updateUser(userId: number, updates: {
     email?: string | null;

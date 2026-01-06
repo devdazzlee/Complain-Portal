@@ -30,6 +30,7 @@ export default function ReportsPage() {
   const [exportingCSV, setExportingCSV] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const generateReport = async () => {
     if (!dateRange.start || !dateRange.end) {
@@ -218,6 +219,32 @@ export default function ReportsPage() {
     
     exportToExcel(exportData, "complaints_report");
     setTimeout(() => setExportingExcel(false), 1000);
+  };
+
+  const handleGenerateAndExport = async (format: 'csv' | 'excel') => {
+    setShowExportModal(false);
+    
+    // First generate the report if not already generated or stale
+    if (!reportData || isStale()) {
+      setLoading(true);
+      try {
+        await generateReport();
+        // Wait for report data to be set
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (err) {
+        console.error('Error generating report:', err);
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    // Export in the selected format
+    if (format === 'csv') {
+      handleExportCSV();
+    } else {
+      handleExportExcel();
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -425,7 +452,7 @@ export default function ReportsPage() {
           </div>
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
             <button
-              onClick={generateReport}
+              onClick={() => setShowExportModal(true)}
               disabled={loading}
               className="px-5 md:px-7 py-3 md:py-3.5 rounded-lg font-semibold text-base md:text-lg flex items-center justify-center gap-2 transition-all duration-200"
               style={{
@@ -449,133 +476,161 @@ export default function ReportsPage() {
                 }
               }}
             >
-              {loading ? (
-                <>
-                  <Loader size="sm" color="#FFFFFF" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                    />
-                  </svg>
-                  Generate Report
-                </>
-              )}
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              Generate Report
             </button>
-            {reportData && (
-              <>
-                <button
-                  onClick={handleExportCSV}
-                  disabled={exportingCSV || exportingExcel}
-                  className="px-5 md:px-7 py-3 md:py-3.5 rounded-lg font-semibold text-base md:text-lg whitespace-nowrap flex items-center justify-center gap-2 transition-all duration-200"
-                  style={{
-                    backgroundColor: exportingCSV ? "#2A2B30" : "#009200",
-                    color: "#FFFFFF",
-                    minHeight: "52px",
-                    boxShadow: exportingCSV
-                      ? "none"
-                      : "0 4px 12px rgba(0, 146, 0, 0.3)",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!exportingCSV && !exportingExcel) {
-                      e.currentTarget.style.backgroundColor = "#007700";
-                      e.currentTarget.style.transform = "translateY(-1px)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!exportingCSV && !exportingExcel) {
-                      e.currentTarget.style.backgroundColor = "#009200";
-                      e.currentTarget.style.transform = "translateY(0)";
-                    }
-                  }}
-                >
-                  {exportingCSV ? (
-                    <>
-                      <Loader size="sm" color="#FFFFFF" />
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
-                      Export CSV
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleExportExcel}
-                  disabled={exportingCSV || exportingExcel}
-                  className="px-5 md:px-7 py-3 md:py-3.5 rounded-lg font-semibold text-base md:text-lg whitespace-nowrap flex items-center justify-center gap-2 transition-all duration-200"
-                  style={{
-                    backgroundColor: exportingExcel ? "#2A2B30" : "#009200",
-                    color: "#FFFFFF",
-                    minHeight: "52px",
-                    boxShadow: exportingExcel
-                      ? "none"
-                      : "0 4px 12px rgba(0, 146, 0, 0.3)",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!exportingCSV && !exportingExcel) {
-                      e.currentTarget.style.backgroundColor = "#007700";
-                      e.currentTarget.style.transform = "translateY(-1px)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!exportingCSV && !exportingExcel) {
-                      e.currentTarget.style.backgroundColor = "#009200";
-                      e.currentTarget.style.transform = "translateY(0)";
-                    }
-                  }}
-                >
-                  {exportingExcel ? (
-                    <>
-                      <Loader size="sm" color="#FFFFFF" />
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
-                      Export Excel
-                    </>
-                  )}
-                </button>
-              </>
-            )}
           </div>
+
+          {/* Export Format Modal */}
+          {showExportModal && (
+            <div
+              className="fixed inset-0 flex items-center justify-center z-50"
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+              onClick={() => setShowExportModal(false)}
+            >
+              <div
+                className="rounded-lg p-6 md:p-8 max-w-md w-full mx-4"
+                style={{ backgroundColor: '#2A2B30', border: '2px solid #E6E6E6' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2
+                  className="text-2xl md:text-3xl font-bold mb-6 text-center"
+                  style={{ color: '#E6E6E6' }}
+                >
+                  Choose Export Format
+                </h2>
+                <p
+                  className="text-base mb-6 text-center"
+                  style={{ color: '#E6E6E6', opacity: 0.8 }}
+                >
+                  Select the format you want to export the report in
+                </p>
+                <div className="flex flex-col gap-4">
+                  <button
+                    onClick={() => handleGenerateAndExport('csv')}
+                    disabled={exportingCSV || exportingExcel}
+                    className="px-6 py-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-3 transition-all duration-200"
+                    style={{
+                      backgroundColor: exportingCSV ? "#2A2B30" : "#009200",
+                      color: "#FFFFFF",
+                      border: '2px solid #009200',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!exportingCSV && !exportingExcel) {
+                        e.currentTarget.style.backgroundColor = "#007700";
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!exportingCSV && !exportingExcel) {
+                        e.currentTarget.style.backgroundColor = "#009200";
+                        e.currentTarget.style.transform = "translateY(0)";
+                      }
+                    }}
+                  >
+                    {exportingCSV ? (
+                      <>
+                        <Loader size="sm" color="#FFFFFF" />
+                        Exporting CSV...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-6 h-6"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                        Export as CSV
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleGenerateAndExport('excel')}
+                    disabled={exportingCSV || exportingExcel}
+                    className="px-6 py-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-3 transition-all duration-200"
+                    style={{
+                      backgroundColor: exportingExcel ? "#2A2B30" : "#009200",
+                      color: "#FFFFFF",
+                      border: '2px solid #009200',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!exportingCSV && !exportingExcel) {
+                        e.currentTarget.style.backgroundColor = "#007700";
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!exportingCSV && !exportingExcel) {
+                        e.currentTarget.style.backgroundColor = "#009200";
+                        e.currentTarget.style.transform = "translateY(0)";
+                      }
+                    }}
+                  >
+                    {exportingExcel ? (
+                      <>
+                        <Loader size="sm" color="#FFFFFF" />
+                        Exporting Excel...
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-6 h-6"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                        Export as Excel
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setShowExportModal(false)}
+                    className="px-6 py-3 rounded-lg font-semibold text-base transition-all duration-200"
+                    style={{
+                      backgroundColor: '#2A2B30',
+                      color: '#E6E6E6',
+                      border: '2px solid #E6E6E6',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#1F2022';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#2A2B30';
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Error Message */}

@@ -108,36 +108,55 @@ export default function AdminEditComplaintPage() {
       const mappedComplaint = mapComplaintFromResponse(complaintData as any);
       setComplaint(mappedComplaint);
       
-      // Extract DSW and Client IDs by matching names
-      const rawData = (complaintData as any)?.rawData || complaintData;
-      const complainantName = String(rawData?.['Complainant'] || rawData?.complainant || mappedComplaint.caretaker || '');
-      const complaintAgainst = String(rawData?.['Complaint Against'] || rawData?.complaint_against || '');
+      // Extract DSW and Client IDs directly from API response
+      // Use the raw complaintData directly (it contains worker_id and client_id)
+      const rawData = complaintData as any;
       
-      // Find matching DSW ID by name (from "Complaint Against" field)
+      // Get DSW ID - API returns worker_id
       let foundDswId = '';
-      if (complaintAgainst && dsws.length > 0) {
-        const dswMatch = dsws.find(dsw => {
-          const dswName = dsw.name.toLowerCase();
-          const againstName = complaintAgainst.toLowerCase();
-          // Match if the name contains the DSW name or vice versa
-          return againstName.includes(dswName) || dswName.includes(againstName.split(' - ')[0]);
-        });
-        if (dswMatch) {
-          foundDswId = String(dswMatch.id);
+      if (rawData?.worker_id) {
+        foundDswId = String(rawData.worker_id);
+      } else if (rawData?.dsw_id) {
+        foundDswId = String(rawData.dsw_id);
+      } else if (rawData?.dswId) {
+        foundDswId = String(rawData.dswId);
+      } else if (rawData?.dsw?.id) {
+        foundDswId = String(rawData.dsw.id);
+      } else {
+        // Fall back to name matching if ID not available
+        const complaintAgainst = String(rawData?.['Complaint Against'] || rawData?.complaint_against || '');
+        if (complaintAgainst && dsws.length > 0) {
+          const dswMatch = dsws.find(dsw => {
+            const dswName = dsw.name.toLowerCase();
+            const againstName = complaintAgainst.toLowerCase();
+            return againstName.includes(dswName) || dswName.includes(againstName.split(' - ')[0]);
+          });
+          if (dswMatch) {
+            foundDswId = String(dswMatch.id);
+          }
         }
       }
       
-      // Find matching Client ID by name (from "Complainant" field)
+      // Get Client ID - API returns client_id
       let foundClientId = '';
-      if (complainantName && clients.length > 0) {
-        const clientMatch = clients.find(client => {
-          const clientName = client.name.toLowerCase();
-          const complainant = complainantName.toLowerCase();
-          // Match if the name contains the client name or vice versa
-          return complainant.includes(clientName) || clientName.includes(complainant.split(' - ')[0]);
-        });
-        if (clientMatch) {
-          foundClientId = String(clientMatch.id);
+      if (rawData?.client_id) {
+        foundClientId = String(rawData.client_id);
+      } else if (rawData?.clientId) {
+        foundClientId = String(rawData.clientId);
+      } else if (rawData?.client?.id) {
+        foundClientId = String(rawData.client.id);
+      } else {
+        // Fall back to name matching if ID not available
+        const complainantName = String(rawData?.['Complainant'] || rawData?.complainant || mappedComplaint.caretaker || '');
+        if (complainantName && clients.length > 0) {
+          const clientMatch = clients.find(client => {
+            const clientName = client.name.toLowerCase();
+            const complainant = complainantName.toLowerCase();
+            return complainant.includes(clientName) || clientName.includes(complainant.split(' - ')[0]);
+          });
+          if (clientMatch) {
+            foundClientId = String(clientMatch.id);
+          }
         }
       }
       

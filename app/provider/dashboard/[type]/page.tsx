@@ -123,10 +123,44 @@ export default function DashboardDetailPage() {
       case "resolved":
         return complaints.filter((c) => {
           if (c.status !== "Closed") return false;
-          const date = new Date(c.dateSubmitted);
+          // Check when the complaint was resolved (closed) - use lastUpdate or find from timeline
+          let resolvedDate: Date | null = null;
+          
+          // Try to find the closed date from timeline
+          if (c.timeline && c.timeline.length > 0) {
+            const closedEntry = c.timeline.find(t => t.isCompleted || t.status.toLowerCase().includes('closed'));
+            if (closedEntry && closedEntry.date) {
+              const parsed = new Date(closedEntry.date);
+              if (!isNaN(parsed.getTime())) {
+                resolvedDate = parsed;
+              }
+            }
+          }
+          
+          // Fallback to lastUpdate if timeline doesn't have the date
+          if (!resolvedDate && c.lastUpdate) {
+            const parsed = new Date(c.lastUpdate);
+            if (!isNaN(parsed.getTime())) {
+              resolvedDate = parsed;
+            }
+          }
+          
+          // If still no valid date, use dateSubmitted as last resort
+          if (!resolvedDate && c.dateSubmitted) {
+            const parsed = new Date(c.dateSubmitted);
+            if (!isNaN(parsed.getTime())) {
+              resolvedDate = parsed;
+            }
+          }
+          
+          // Only filter if we have a valid date
+          if (!resolvedDate || isNaN(resolvedDate.getTime())) {
+            return false;
+          }
+          
           return (
-            date.getMonth() === currentMonth &&
-            date.getFullYear() === currentYear
+            resolvedDate.getMonth() === currentMonth &&
+            resolvedDate.getFullYear() === currentYear
           );
         });
       case "refused":
