@@ -443,7 +443,7 @@ export default function AssignmentWorkflowPage() {
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 md:gap-4 text-xs md:text-sm" style={{ color: '#E6E6E6', opacity: 0.7 }}>
-                    <span>Caretaker: {complaint.caretaker}</span>
+                    <span>Client: {complaint.caretaker}</span>
                     <span>Type: {complaint.typeOfProblem}</span>
                     <span>Date: {complaint.dateSubmitted}</span>
                   </div>

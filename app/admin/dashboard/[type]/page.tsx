@@ -490,7 +490,7 @@ export default function DashboardDetailPage() {
                       </h3>
                       <div className="space-y-2 mb-4">
                         <p style={{ color: "#E6E6E6", fontSize: "1rem" }}>
-                          <span className="font-semibold">Caretaker:</span>{" "}
+                          <span className="font-semibold">Client:</span>{" "}
                           {complaint.caretaker}
                         </p>
                         <p style={{ color: "#E6E6E6", fontSize: "1rem" }}>
@@ -669,7 +669,7 @@ export default function DashboardDetailPage() {
                         className="text-left py-4 px-4 font-semibold"
                         style={{ color: "#E6E6E6", fontSize: "1.125rem" }}
                       >
-                        Caretaker
+                        Client
                       </th>
                       <th
                         className="text-left py-4 px-4 font-semibold"

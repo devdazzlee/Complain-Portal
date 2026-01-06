@@ -16,6 +16,7 @@ import { ComplaintStatus, ProblemType, Priority, Complaint } from '../../types';
 import PriorityBadge from '../../components/PriorityBadge';
 import Pagination from '../../components/Pagination';
 import Loader from '../../components/Loader';
+import { useComplaintStatuses, useComplaintTypes, useComplaintPriorities, useSortByOptions } from '../../../lib/hooks';
 
 // Helper function to map complaints from API response
 const mapComplaintsFromResponse = (response: Record<string, unknown>): Complaint[] => {
@@ -155,6 +156,26 @@ export default function ComplaintsListPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const itemsPerPage = 10;
+
+  // Fetch dropdown options from API
+  const { data: statusesData } = useComplaintStatuses();
+  const { data: typesData } = useComplaintTypes();
+  const { data: prioritiesData } = useComplaintPriorities();
+  const { data: sortByData } = useSortByOptions();
+
+  // Parse API responses
+  // Statuses: hook already parses to array, but check for nested structure
+  const statuses = Array.isArray(statusesData) ? statusesData : 
+    ((statusesData as any)?.statuses || (statusesData as any)?.data || []);
+  // Types: service already returns array
+  const types = Array.isArray(typesData) ? typesData : 
+    ((typesData as any)?.types || (typesData as any)?.data || []);
+  // Priorities: service already returns array
+  const priorities = Array.isArray(prioritiesData) ? prioritiesData : 
+    ((prioritiesData as any)?.priorities || (prioritiesData as any)?.data || []);
+  // Sort By: check for nested structure
+  const sortByOptions = Array.isArray(sortByData) ? sortByData : 
+    ((sortByData as any)?.sort_by || (sortByData as any)?.sortByOptions || (sortByData as any)?.data || []);
 
   // Debounce search query
   useEffect(() => {
@@ -318,10 +339,22 @@ export default function ComplaintsListPage() {
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
                   <SelectItem value="All" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">All Status</SelectItem>
-                  <SelectItem value="Open" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Open</SelectItem>
-                  <SelectItem value="In Progress" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">In Progress</SelectItem>
-                  <SelectItem value="Closed" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Closed</SelectItem>
-                  <SelectItem value="Refused" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Refused</SelectItem>
+                  {Array.isArray(statuses) && statuses.map((status: Record<string, unknown>) => {
+                    const statusLabel = String(status.label || status.name || status.code || '');
+                    const statusCode = String(status.code || '').toLowerCase();
+                    // Map API status to ComplaintStatus
+                    const mappedStatus: ComplaintStatus = 
+                      statusCode.includes('open') ? 'Open' :
+                      statusCode.includes('progress') || statusCode.includes('pending') ? 'In Progress' :
+                      statusCode.includes('closed') || statusCode.includes('resolved') ? 'Closed' :
+                      statusCode.includes('refused') || statusCode.includes('rejected') ? 'Refused' :
+                      'Open';
+                    return (
+                      <SelectItem key={String(status.id || statusCode)} value={mappedStatus} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                        {statusLabel}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -334,10 +367,20 @@ export default function ComplaintsListPage() {
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
                   <SelectItem value="All" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">All Types</SelectItem>
-                  <SelectItem value="Late arrival" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Late arrival</SelectItem>
-                  <SelectItem value="Behavior" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Behavior</SelectItem>
-                  <SelectItem value="Missed service" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Missed service</SelectItem>
-                  <SelectItem value="Other" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Other</SelectItem>
+                  {Array.isArray(types) && types.map((type: Record<string, unknown>) => {
+                    const typeName = String(type.name || type.code || '');
+                    // Map API type to ProblemType
+                    const mappedType: ProblemType = 
+                      typeName.toLowerCase().includes('late') ? 'Late arrival' :
+                      typeName.toLowerCase().includes('behavior') ? 'Behavior' :
+                      typeName.toLowerCase().includes('missed') ? 'Missed service' :
+                      'Other';
+                    return (
+                      <SelectItem key={String(type.id || type.code)} value={mappedType} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                        {typeName}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -350,10 +393,14 @@ export default function ComplaintsListPage() {
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
                   <SelectItem value="All" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">All Priorities</SelectItem>
-                  <SelectItem value="Low" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Low</SelectItem>
-                  <SelectItem value="Medium" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Medium</SelectItem>
-                  <SelectItem value="High" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">High</SelectItem>
-                  <SelectItem value="Urgent" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Urgent</SelectItem>
+                  {Array.isArray(priorities) && priorities.map((priority: Record<string, unknown>) => {
+                    const priorityLabel = String(priority.label || priority.name || priority.code || '');
+                    return (
+                      <SelectItem key={String(priority.id || priority.code)} value={priorityLabel as Priority} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                        {priorityLabel}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -365,9 +412,27 @@ export default function ComplaintsListPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
-                  <SelectItem value="date" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Date</SelectItem>
-                  <SelectItem value="status" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Status</SelectItem>
-                  <SelectItem value="priority" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Priority</SelectItem>
+                  {Array.isArray(sortByOptions) && sortByOptions.length > 0 ? (
+                    sortByOptions.map((option: Record<string, unknown>) => {
+                      const optionLabel = String(option.label || option.name || option.value || '');
+                      const optionValue = String(option.value || option.code || option.id || '');
+                      // Map API sort option to our internal values
+                      const mappedValue = optionValue.toLowerCase().includes('date') ? 'date' :
+                        optionValue.toLowerCase().includes('status') ? 'status' :
+                        optionValue.toLowerCase().includes('priority') ? 'priority' : 'date';
+                      return (
+                        <SelectItem key={String(option.id || optionValue)} value={mappedValue} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                          {optionLabel}
+                        </SelectItem>
+                      );
+                    })
+                  ) : (
+                    <>
+                      <SelectItem value="date" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Date</SelectItem>
+                      <SelectItem value="status" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Status</SelectItem>
+                      <SelectItem value="priority" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Priority</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -419,7 +484,7 @@ export default function ComplaintsListPage() {
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 md:gap-4 text-xs md:text-sm" style={{ color: '#E6E6E6', opacity: 0.7 }}>
-                  <span>Caretaker: {complaint.caretaker}</span>
+                  <span>Client: {complaint.caretaker}</span>
                   <span>Type: {complaint.typeOfProblem}</span>
                   <span>Date: {complaint.dateSubmitted}</span>
                   {complaint.category && <span>Category: {complaint.category}</span>}

@@ -102,7 +102,7 @@ export default function AssignmentWorkflowPage() {
       statusStr.includes('closed') || statusStr.includes('resolved') ? 'Closed' :
       statusStr.includes('refused') || statusStr.includes('rejected') ? 'Refused' :
       'Open';
-    
+
     return {
       id: String(apiComplaint.id || ''),
       complaintId: `CMP-${apiComplaint.id || ''}`,
@@ -443,7 +443,7 @@ export default function AssignmentWorkflowPage() {
                             <span className="text-sm opacity-80 mt-0.5">Complainant: {complainant}</span>
                             <span className="text-sm opacity-80">Complaint Against: {complaintAgainst}</span>
                           </div>
-                        </SelectItem>
+                      </SelectItem>
                       );
                     })
                   ) : (
@@ -577,7 +577,7 @@ export default function AssignmentWorkflowPage() {
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 md:gap-4 text-xs md:text-sm" style={{ color: '#E6E6E6', opacity: 0.7 }}>
-                    <span>Caretaker: {complaint.caretaker}</span>
+                    <span>Client: {complaint.caretaker}</span>
                     <span>Type: {complaint.typeOfProblem}</span>
                     <span>Date: {complaint.dateSubmitted}</span>
                   </div>

@@ -10,6 +10,7 @@ import { useComplaintDetailStore } from '../../../../../lib/stores/complaintDeta
 import { ProblemType, Priority, Complaint } from '../../../../types';
 import Loader from '../../../../components/Loader';
 import Toast from '../../../../components/Toast';
+import { VoiceRecognition } from '../../../../utils/voiceRecognition';
 import { useComplaint, useDsws, useClients, useTypes, usePriorities, useUpdateComplaint } from '../../../../../lib/hooks';
 import {
   Select,
@@ -98,9 +99,21 @@ export default function AdminEditComplaintPage() {
     remarks: '',
   });
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
   const [dswSearch, setDswSearch] = useState('');
   const [clientSearch, setClientSearch] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const voiceRecognitionRef = useRef<VoiceRecognition | null>(null);
+
+  // Initialize VoiceRecognition
+  useEffect(() => {
+    voiceRecognitionRef.current = new VoiceRecognition();
+    return () => {
+      if (voiceRecognitionRef.current) {
+        voiceRecognitionRef.current.stop();
+      }
+    };
+  }, []);
 
   // Populate form when complaint data is loaded
   useEffect(() => {
@@ -301,6 +314,29 @@ export default function AdminEditComplaintPage() {
 
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleVoiceInput = () => {
+    if (!voiceRecognitionRef.current) return;
+
+    if (isRecording) {
+      voiceRecognitionRef.current.stop();
+      setIsRecording(false);
+      return;
+    }
+
+    setIsRecording(true);
+    voiceRecognitionRef.current.start(
+      (text) => {
+        setFormData({ ...formData, description: formData.description + (formData.description ? ' ' : '') + text });
+        setIsRecording(false);
+        setToast({ message: 'Voice input captured successfully!', type: 'success' });
+      },
+      (error) => {
+        setIsRecording(false);
+        setToast({ message: error, type: 'error' });
+      }
+    );
   };
 
   const isLoading = complaintLoading || dswsLoading || clientsLoading || typesLoading || prioritiesLoading;
@@ -585,6 +621,57 @@ export default function AdminEditComplaintPage() {
               onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
               onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
             />
+            
+            {/* Voice Options */}
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleVoiceInput}
+                className="w-full rounded-lg transition-all flex items-center justify-center gap-3 p-4 md:p-5 relative overflow-hidden"
+                style={{
+                  backgroundColor: isRecording ? '#FF3F3F' : '#2AB3EE',
+                  border: 'none',
+                  minHeight: '60px',
+                  boxShadow: isRecording 
+                    ? '0 4px 20px rgba(255, 63, 63, 0.4)' 
+                    : '0 4px 15px rgba(42, 179, 238, 0.3)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isRecording) {
+                    e.currentTarget.style.backgroundColor = '#1F8FD0';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(42, 179, 238, 0.5)';
+                  } else {
+                    e.currentTarget.style.backgroundColor = '#FF1F1F';
+                    e.currentTarget.style.boxShadow = '0 6px 25px rgba(255, 63, 63, 0.5)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isRecording) {
+                    e.currentTarget.style.backgroundColor = '#2AB3EE';
+                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(42, 179, 238, 0.3)';
+                  } else {
+                    e.currentTarget.style.backgroundColor = '#FF3F3F';
+                    e.currentTarget.style.boxShadow = '0 4px 20px rgba(255, 63, 63, 0.4)';
+                  }
+                }}
+              >
+                {isRecording ? (
+                  <>
+                    <svg className="w-6 h-6 md:w-7 md:h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <rect x="6" y="6" width="12" height="12" rx="2" />
+                    </svg>
+                    <span className="text-base md:text-lg font-bold text-white">Stop Recording</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-6 h-6 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                    <span className="text-base md:text-lg font-bold text-white">Record Voice</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Remarks */}

@@ -609,7 +609,7 @@ export default function ProviderDashboard() {
                         opacity: 0.8,
                       }}
                     >
-                      <span className="font-semibold">Caretaker:</span>{" "}
+                      <span className="font-semibold">Client:</span>{" "}
                       {complaint.caretaker}
                     </p>
                     <div className="mb-2">
@@ -691,7 +691,7 @@ export default function ProviderDashboard() {
                   className="text-left py-4 px-4 font-semibold"
                   style={{ color: "#E6E6E6", fontSize: "1.125rem" }}
                 >
-                  Caretaker
+                  Client
                 </th>
                 <th
                   className="text-left py-4 px-4 font-semibold"
