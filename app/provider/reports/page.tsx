@@ -632,7 +632,7 @@ export default function ReportsPage() {
                   Avg Response
                 </h3>
                 <p className="font-bold text-white !text-4xl md:text-9xl leading-none">
-                  {reportData.averageResponseTime.toFixed(0)}
+                  {(reportData.averageResponseTime ?? 0).toFixed(0)}
                   <span className="text-2xl md:text-4xl">h</span>
                 </p>
               </div>
@@ -645,7 +645,7 @@ export default function ReportsPage() {
                   Avg Resolution
                 </h3>
                 <p className="font-bold text-white !text-4xl md:text-9xl leading-none">
-                  {reportData.averageResolutionTime.toFixed(0)}
+                  {(reportData.averageResolutionTime ?? 0).toFixed(0)}
                   <span className="text-2xl md:text-4xl">h</span>
                 </p>
               </div>
