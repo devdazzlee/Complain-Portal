@@ -343,6 +343,17 @@ export default function EditComplaintPage() {
     );
   }
 
+  // TypeScript guard: ensure complaint is not null
+  if (!complaint) {
+    return (
+      <Layout role="provider">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader size="lg" />
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout role="provider">
       <div className="max-w-3xl mx-auto">
