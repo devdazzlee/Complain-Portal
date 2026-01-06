@@ -4,7 +4,13 @@ import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Layout from "../../../components/Layout";
-import { useComplaints } from "../../../../lib/hooks";
+import { 
+  useComplaints,
+  useOpenComplaints,
+  usePendingComplaints,
+  useResolvedComplaints,
+  useRefusedComplaints
+} from "../../../../lib/hooks";
 import { ComplaintStatus, Complaint, ProblemType, Priority, FileAttachment, ComplaintTimelineItem } from "../../../types";
 import Pagination from "../../../components/Pagination";
 import Loader from "../../../components/Loader";
@@ -14,10 +20,33 @@ type CardType = "open" | "pending" | "resolved" | "refused";
 export default function DashboardDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: storeComplaints, isLoading: loading } = useComplaints();
   const type = params.type as CardType;
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Use specific API hooks based on card type
+  const { data: openComplaints = [], isLoading: openLoading } = useOpenComplaints();
+  const { data: pendingComplaints = [], isLoading: pendingLoading } = usePendingComplaints();
+  const { data: resolvedComplaints = [], isLoading: resolvedLoading } = useResolvedComplaints();
+  const { data: refusedComplaints = [], isLoading: refusedLoading } = useRefusedComplaints();
+
+  // Get the appropriate data and loading state based on type
+  const getComplaintsData = () => {
+    switch (type) {
+      case "open":
+        return { data: openComplaints, loading: openLoading };
+      case "pending":
+        return { data: pendingComplaints, loading: pendingLoading };
+      case "resolved":
+        return { data: resolvedComplaints, loading: resolvedLoading };
+      case "refused":
+        return { data: refusedComplaints, loading: refusedLoading };
+      default:
+        return { data: [], loading: false };
+    }
+  };
+
+  const { data: complaints, loading } = getComplaintsData();
 
   // Removed - now handled by React Query hooks
   /* OLD CODE - REMOVED
@@ -105,70 +134,17 @@ export default function DashboardDetailPage() {
   };
   */
 
-  // Use complaints from React Query
-  const complaints = storeComplaints || [];
-
-  const getFilteredComplaints = (cardType: CardType): Complaint[] => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    switch (cardType) {
-      case "open":
-        return complaints.filter(
-          (c) => c.status === "Open" || c.status === "In Progress"
-        );
-      case "pending":
-        return complaints.filter((c) => c.status === "In Progress");
-      case "resolved":
-        return complaints.filter((c) => {
-          if (c.status !== "Closed") return false;
-          // Check when the complaint was resolved (closed) - use lastUpdate or find from timeline
-          let resolvedDate: Date | null = null;
-          
-          // Try to find the closed date from timeline
-          if (c.timeline && c.timeline.length > 0) {
-            const closedEntry = c.timeline.find(t => t.isCompleted || t.status.toLowerCase().includes('closed'));
-            if (closedEntry && closedEntry.date) {
-              const parsed = new Date(closedEntry.date);
-              if (!isNaN(parsed.getTime())) {
-                resolvedDate = parsed;
-              }
-            }
-          }
-          
-          // Fallback to lastUpdate if timeline doesn't have the date
-          if (!resolvedDate && c.lastUpdate) {
-            const parsed = new Date(c.lastUpdate);
-            if (!isNaN(parsed.getTime())) {
-              resolvedDate = parsed;
-            }
-          }
-          
-          // If still no valid date, use dateSubmitted as last resort
-          if (!resolvedDate && c.dateSubmitted) {
-            const parsed = new Date(c.dateSubmitted);
-            if (!isNaN(parsed.getTime())) {
-              resolvedDate = parsed;
-            }
-          }
-          
-          // Only filter if we have a valid date
-          if (!resolvedDate || isNaN(resolvedDate.getTime())) {
-            return false;
-          }
-          
-          return (
-            resolvedDate.getMonth() === currentMonth &&
-            resolvedDate.getFullYear() === currentYear
-          );
-        });
-      case "refused":
-        return complaints.filter((c) => c.status === "Refused");
-      default:
-        return [];
-    }
-  };
+  // Complaints are already filtered by the API, so we can use them directly
+  // Sort by date (newest first)
+  const filteredComplaints = useMemo(() => {
+    if (!complaints || complaints.length === 0) return [];
+    return [...complaints].sort((a, b) => {
+      return (
+        new Date(b.dateSubmitted).getTime() -
+        new Date(a.dateSubmitted).getTime()
+      );
+    });
+  }, [complaints]);
 
   const getPageTitle = (cardType: CardType): string => {
     switch (cardType) {
@@ -215,17 +191,6 @@ export default function DashboardDetailPage() {
     }
   };
 
-  const filteredComplaints = useMemo(() => {
-    if (!type || !["open", "pending", "resolved", "refused"].includes(type)) {
-      return [];
-    }
-    return getFilteredComplaints(type).sort((a, b) => {
-      return (
-        new Date(b.dateSubmitted).getTime() -
-        new Date(a.dateSubmitted).getTime()
-      );
-    });
-  }, [type, complaints]);
 
   const totalPages = Math.ceil(filteredComplaints.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;

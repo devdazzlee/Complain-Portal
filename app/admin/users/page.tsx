@@ -83,9 +83,9 @@ function UserManagementContent() {
   }, [isRolesStale, roles.length, setRoles]);
 
   // Fetch users from API
-  const fetchUsers = useCallback(async (nameFilter?: string, skipLoading = false) => {
-    // Skip if users are cached and fresh (only for non-filtered requests)
-    if (!nameFilter && !isUsersStale() && users.length > 0 && !skipLoading) {
+  const fetchUsers = useCallback(async (nameFilter?: string, skipLoading = false, role?: 'All' | 'provider' | 'admin') => {
+    // Skip if users are cached and fresh (only for non-filtered requests without role filter)
+    if (!nameFilter && !role && !isUsersStale() && users.length > 0 && !skipLoading) {
       setLoading(false);
       return;
     }
@@ -95,7 +95,23 @@ function UserManagementContent() {
         setLoading(true);
       }
       setError(null);
-      const response = await userManagementService.getAllUsers(nameFilter);
+      
+      // Use appropriate API endpoint based on role filter
+      let response;
+      if (role === 'admin') {
+        response = await userManagementService.getAllAdmins();
+      } else if (role === 'provider') {
+        response = await userManagementService.getAllProviders();
+      } else if (role === 'All' || !role) {
+        // Use no-limit endpoint for "All" or when no role filter
+        if (nameFilter) {
+          response = await userManagementService.getAllUsers(nameFilter);
+        } else {
+          response = await userManagementService.getAllUsersNoLimit();
+        }
+      } else {
+        response = await userManagementService.getAllUsers(nameFilter);
+      }
       
       // Map API response to User interface
       // API response structure: { status: true, users: [...] }
@@ -166,7 +182,7 @@ function UserManagementContent() {
       
       // Fetch users if stale
       if (isUsersStale() || users.length === 0) {
-        promises.push(fetchUsers());
+        promises.push(fetchUsers(undefined, false, roleFilter));
       }
       
       // If no promises, data is fresh
@@ -203,7 +219,7 @@ function UserManagementContent() {
       // Skip loading state for search to prevent flickering
       // Only fetch if search query has changed
       if (searchQuery.trim()) {
-        fetchUsers(searchQuery.trim(), true);
+        fetchUsers(searchQuery.trim(), true, roleFilter);
       }
       // Don't refetch when search is cleared - keep existing data
     }, 500);
@@ -217,19 +233,20 @@ function UserManagementContent() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, isInitialLoad]);
+  }, [searchQuery, isInitialLoad, roleFilter, fetchUsers]);
+
+  // Refetch users when role filter changes
+  useEffect(() => {
+    if (!isInitialLoad) {
+      fetchUsers(searchQuery.trim() || undefined, false, roleFilter);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleFilter]);
 
   const filteredUsers = useMemo(() => {
-    let filtered = [...users];
-
-    // Filter by role (client-side since API doesn't support role filter)
-    if (roleFilter !== 'All') {
-      filtered = filtered.filter(u => u.role === roleFilter);
-    }
-
-    // Sort by name
-    return filtered.sort((a, b) => a.name.localeCompare(b.name));
-  }, [users, roleFilter]);
+    // Users are already filtered by API, just sort by name
+    return [...users].sort((a, b) => a.name.localeCompare(b.name));
+  }, [users]);
 
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -279,7 +296,7 @@ function UserManagementContent() {
 
       // Refresh users list (force refresh by clearing cache)
       useUserManagementStore.setState({ lastFetchedUsers: null });
-      await fetchUsers(searchQuery.trim() || undefined, true);
+      await fetchUsers(searchQuery.trim() || undefined, true, roleFilter);
       
     setToast({ message: 'User updated successfully', type: 'success' });
     setEditingUser(null);

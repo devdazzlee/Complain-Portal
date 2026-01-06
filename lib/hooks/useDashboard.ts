@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { dashboardService } from "../services";
+import { dashboardService, userManagementService } from "../services";
 import { DashboardStats } from "../../app/types";
 
 // Query keys
@@ -53,6 +53,45 @@ export function useUsers(name?: string) {
     queryFn: async () => {
       const response = await dashboardService.getUsers(name);
       return response;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+// Hook to get all users with no limit
+export function useUsersNoLimit() {
+  return useQuery({
+    queryKey: dashboardKeys.usersNoLimit(),
+    queryFn: async () => {
+      const response = await userManagementService.getAllUsersNoLimit();
+      const users = response?.users || response?.data || response || [];
+      return Array.isArray(users) ? users : [];
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+// Hook to get all admins
+export function useAdmins() {
+  return useQuery({
+    queryKey: dashboardKeys.admins(),
+    queryFn: async () => {
+      const response = await userManagementService.getAllAdmins();
+      const users = response?.users || response?.data || response || [];
+      return Array.isArray(users) ? users : [];
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+// Hook to get all providers (for user management)
+export function useAllProviders() {
+  return useQuery({
+    queryKey: dashboardKeys.providers(),
+    queryFn: async () => {
+      const response = await userManagementService.getAllProviders();
+      const users = response?.users || response?.data || response || [];
+      return Array.isArray(users) ? users : [];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
