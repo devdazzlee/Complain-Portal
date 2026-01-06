@@ -56,6 +56,8 @@ const mapComplaintsFromResponse = (response: Record<string, unknown>): Complaint
       description: String(item.description || ''),
       status: mappedStatus,
       priority: String(priority?.label || priority?.code || 'Low') as Priority,
+      // Store type ID for filtering (extend Complaint interface with additional property)
+      typeId: String(type?.id || '') as any,
       dateSubmitted: (() => {
         // Helper to safely format dates
         const formatDate = (dateString: string | undefined | null): string => {
@@ -149,7 +151,7 @@ export default function AdminComplaintsPage() {
   const { complaints: storeComplaints, setComplaints, isComplaintsStale } = useDashboardStore();
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'All'>('All');
-  const [typeFilter, setTypeFilter] = useState<ProblemType | 'All'>('All');
+  const [typeFilter, setTypeFilter] = useState<string | 'All'>('All'); // Store type ID instead of ProblemType
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'All'>('All');
   const [sortBy, setSortBy] = useState<'date' | 'status' | 'priority'>('date');
   const [currentPage, setCurrentPage] = useState(1);
@@ -257,7 +259,11 @@ export default function AdminComplaintsPage() {
     }
 
     if (typeFilter !== 'All') {
-      filtered = filtered.filter(c => c.typeOfProblem === typeFilter);
+      // Filter by type ID - complaints now store typeId
+      filtered = filtered.filter(c => {
+        const complaintTypeId = (c as any).typeId || '';
+        return String(complaintTypeId) === String(typeFilter);
+      });
     }
 
     if (priorityFilter !== 'All') {
@@ -386,22 +392,17 @@ export default function AdminComplaintsPage() {
 
             <div>
               <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>Type</label>
-              <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as ProblemType | 'All')}>
+              <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as string | 'All')}>
                 <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
                   <SelectItem value="All" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">All Types</SelectItem>
                   {Array.isArray(types) && types.map((type: Record<string, unknown>) => {
+                    const typeId = String(type.id || '');
                     const typeName = String(type.name || type.code || '');
-                    // Map API type to ProblemType
-                    const mappedType: ProblemType = 
-                      typeName.toLowerCase().includes('late') ? 'Late arrival' :
-                      typeName.toLowerCase().includes('behavior') ? 'Behavior' :
-                      typeName.toLowerCase().includes('missed') ? 'Missed service' :
-                      'Other';
                     return (
-                      <SelectItem key={String(type.id || type.code)} value={mappedType} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
+                      <SelectItem key={typeId} value={typeId} className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">
                         {typeName}
                       </SelectItem>
                     );
