@@ -155,7 +155,7 @@ export default function ComplaintsListPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-  const [hadSearchQuery, setHadSearchQuery] = useState(false); // Track if we had a search query before
+  const prevDebouncedSearchRef = React.useRef<string>(''); // Track previous debounced search to detect clearing
   const itemsPerPage = 10;
 
   // Fetch dropdown options from API
@@ -183,8 +183,6 @@ export default function ComplaintsListPage() {
     const timer = setTimeout(() => {
       const trimmed = searchQuery.trim();
       setDebouncedSearchQuery(trimmed);
-      // Track if we had a search query (for detecting when search is cleared)
-      setHadSearchQuery(trimmed.length > 0);
     }, 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -192,8 +190,15 @@ export default function ComplaintsListPage() {
   // Fetch complaints from API (only if stale or search query changed)
   useEffect(() => {
     const fetchComplaints = async () => {
+      const wasSearching = prevDebouncedSearchRef.current.trim().length > 0;
+      const isSearching = debouncedSearchQuery.trim().length > 0;
+      const searchWasCleared = wasSearching && !isSearching;
+      
+      // Update ref for next render
+      prevDebouncedSearchRef.current = debouncedSearchQuery;
+      
       // If searching, always fetch from API
-      if (debouncedSearchQuery.trim()) {
+      if (isSearching) {
         try {
           setLoading(true);
           const response = await complaintService.getAll(debouncedSearchQuery.trim());
@@ -208,8 +213,7 @@ export default function ComplaintsListPage() {
       }
 
       // If search was cleared (had search before, now empty), always fetch all complaints
-      // Otherwise, use cache if fresh
-      if (hadSearchQuery) {
+      if (searchWasCleared) {
         // User cleared the search - always refetch to show all complaints
         try {
           setLoading(true);
@@ -243,7 +247,7 @@ export default function ComplaintsListPage() {
     };
 
     fetchComplaints();
-  }, [isComplaintsStale, storeComplaints.length, setComplaints, debouncedSearchQuery, hadSearchQuery]);
+  }, [isComplaintsStale, storeComplaints.length, setComplaints, debouncedSearchQuery]);
 
   const filteredAndSortedComplaints = useMemo(() => {
     let filtered = [...storeComplaints];
