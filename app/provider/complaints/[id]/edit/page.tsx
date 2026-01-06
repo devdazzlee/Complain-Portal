@@ -305,7 +305,10 @@ export default function EditComplaintPage() {
 
   const isLoading = complaintLoading || dswsLoading || clientsLoading || typesLoading || prioritiesLoading;
 
-  if (isLoading) {
+  // Show loading if:
+  // 1. Any query is still loading, OR
+  // 2. complaintData exists but complaint hasn't been set yet (useEffect is processing)
+  if (isLoading || (complaintData && !complaint)) {
     return (
       <Layout role="provider">
         <div className="flex items-center justify-center min-h-[400px]">
@@ -315,7 +318,8 @@ export default function EditComplaintPage() {
     );
   }
 
-  if (!complaintData || !complaint) {
+  // Only show "not found" if loading is complete and there's no complaintData
+  if (!complaintLoading && !complaintData) {
     return (
       <Layout role="provider">
         <div className="text-center py-16">
