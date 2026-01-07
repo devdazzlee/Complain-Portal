@@ -53,7 +53,45 @@ export default function ProviderDashboard() {
     resolvedThisMonth: 0,
     refusedComplaints: 0,
   };
-  const storeStatuses = Array.isArray(statusesData) ? statusesData : [];
+  const rawStatuses = Array.isArray(statusesData) ? statusesData : [];
+  
+  // Map API status to ComplaintStatus
+  const mapStatus = (status: string | number): ComplaintStatus => {
+    if (typeof status === 'number') {
+      // If status is a number (status_id), map it
+      const statusMap: Record<number, ComplaintStatus> = {
+        1: 'Open',
+        2: 'In Progress',
+        3: 'Closed',
+        4: 'Refused',
+      };
+      return statusMap[status] || 'Open';
+    }
+    
+    // If status is a string, normalize it
+    const statusStr = status?.toLowerCase() || '';
+    if (statusStr.includes('open')) return 'Open';
+    if (statusStr.includes('progress') || statusStr.includes('pending')) return 'In Progress';
+    if (statusStr.includes('closed') || statusStr.includes('resolved')) return 'Closed';
+    if (statusStr.includes('refused') || statusStr.includes('rejected')) return 'Refused';
+    return 'Open';
+  };
+  
+  // Deduplicate statuses by mapped status value to prevent multiple selections
+  const storeStatuses = useMemo(() => {
+    const seenStatuses = new Set<ComplaintStatus | string>();
+    return rawStatuses.filter((status: Record<string, unknown>) => {
+      const statusName = (status.label as string) || (status.name as string) || (status.status_name as string) || (status.code as string) || '';
+      const mappedStatus = mapStatus(statusName || String(status.id || ''));
+      
+      if (seenStatuses.has(mappedStatus)) {
+        return false;
+      }
+      seenStatuses.add(mappedStatus);
+      return true;
+    });
+  }, [rawStatuses]);
+  
   const storeTypes = Array.isArray(typesData) ? typesData : [];
   const sortByOptions = Array.isArray(sortByData?.sort_by || sortByData?.data || sortByData)
     ? (sortByData?.sort_by || sortByData?.data || sortByData)
@@ -73,9 +111,11 @@ export default function ProviderDashboard() {
     } = {};
     
     if (statusFilter !== "All") {
+      // Find status by comparing mapped status values, not by direct name match
       const status = storeStatuses.find((s: Record<string, unknown>) => {
-        const name = (s.name as string) || (s.status_name as string) || '';
-        return name.toLowerCase() === statusFilter.toLowerCase();
+        const name = (s.label as string) || (s.name as string) || (s.status_name as string) || (s.code as string) || '';
+        const mappedStatus = mapStatus(name || String(s.id || ''));
+        return mappedStatus === statusFilter;
       });
       const statusId = (status?.id as number) || (status?.status_id as number);
       if (statusId) filters.status_id = statusId;
@@ -110,47 +150,78 @@ export default function ProviderDashboard() {
   const filteredAndSortedComplaints = useMemo(() => {
     let filtered = [...allComplaints];
 
+    // If no sortBy is set, default to date sorting
+    if (!sortBy) {
+      filtered.sort((a, b) => {
+        return new Date(b.dateSubmitted).getTime() - new Date(a.dateSubmitted).getTime();
+      });
+      return filtered;
+    }
+
     // Get the sort option details from sortByOptions
     const selectedSortOption = sortByOptions.find((option: Record<string, unknown>) => {
       const optionId = String(option.id || option.value || '');
       return optionId === sortBy;
     });
 
-    // Determine sort type from option (check code, value, or label)
-    const sortType = selectedSortOption 
-      ? (String(selectedSortOption.code || selectedSortOption.value || selectedSortOption.label || '')).toLowerCase()
-      : 'date'; // Default to date sorting
+    // Determine sort type from option (check code, value, label, or name)
+    let sortType = 'date'; // Default to date sorting
+    
+    if (selectedSortOption) {
+      // Try multiple fields to determine sort type
+      const optionCode = String(selectedSortOption.code || '').toLowerCase();
+      const optionValue = String(selectedSortOption.value || '').toLowerCase();
+      const optionLabel = String(selectedSortOption.label || selectedSortOption.name || '').toLowerCase();
+      
+      // Determine sort type by checking which field contains the sort indicator
+      if (optionCode.includes('date') || optionValue.includes('date') || optionLabel.includes('date') || 
+          optionLabel.includes('newest') || optionLabel.includes('oldest')) {
+        sortType = optionLabel.includes('oldest') ? 'oldest' : 'date';
+      } else if (optionCode.includes('status') || optionValue.includes('status') || optionLabel.includes('status')) {
+        sortType = 'status';
+      } else if (optionCode.includes('priority') || optionValue.includes('priority') || optionLabel.includes('priority')) {
+        sortType = 'priority';
+      } else if (optionCode.includes('type') || optionValue.includes('type') || optionLabel.includes('type')) {
+        sortType = 'type';
+      }
+    }
 
     // Apply client-side sorting based on selected option
     filtered.sort((a, b) => {
       // Sort by date (newest first)
-      if (sortType.includes('date') || sortType.includes('newest') || sortType.includes('oldest')) {
+      if (sortType === 'date' || sortType.includes('date') || sortType.includes('newest')) {
         const dateA = new Date(a.dateSubmitted).getTime();
         const dateB = new Date(b.dateSubmitted).getTime();
-        return sortType.includes('oldest') ? dateA - dateB : dateB - dateA;
+        return dateB - dateA; // Newest first
+      }
+      // Sort by date (oldest first)
+      else if (sortType === 'oldest') {
+        const dateA = new Date(a.dateSubmitted).getTime();
+        const dateB = new Date(b.dateSubmitted).getTime();
+        return dateA - dateB; // Oldest first
       }
       // Sort by status
-      else if (sortType.includes('status')) {
+      else if (sortType === 'status' || sortType.includes('status')) {
         const statusOrder: Record<ComplaintStatus, number> = {
           Open: 1,
           "In Progress": 2,
           Closed: 3,
           Refused: 4,
         };
-        return statusOrder[a.status] - statusOrder[b.status];
+        return (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0);
       }
       // Sort by priority
-      else if (sortType.includes('priority')) {
+      else if (sortType === 'priority' || sortType.includes('priority')) {
         const priorityOrder: Record<Priority, number> = {
           Low: 1,
           Medium: 2,
           High: 3,
           Urgent: 4,
         };
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
+        return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0); // Higher priority first
       }
       // Sort by type
-      else if (sortType.includes('type')) {
+      else if (sortType === 'type' || sortType.includes('type')) {
         return a.typeOfProblem.localeCompare(b.typeOfProblem);
       }
       // Default: sort by date (newest first)
@@ -190,28 +261,6 @@ export default function ProviderDashboard() {
   }, [sortByOptions, sortBy]);
 
   // Removed - now handled by React Query hooks
-
-  // Map API status to ComplaintStatus
-  const mapStatus = (status: string | number): ComplaintStatus => {
-    if (typeof status === 'number') {
-      // If status is a number (status_id), map it
-      const statusMap: Record<number, ComplaintStatus> = {
-        1: 'Open',
-        2: 'In Progress',
-        3: 'Closed',
-        4: 'Refused',
-      };
-      return statusMap[status] || 'Open';
-    }
-    
-    // If status is a string, normalize it
-    const statusStr = status?.toLowerCase() || '';
-    if (statusStr.includes('open')) return 'Open';
-    if (statusStr.includes('progress') || statusStr.includes('pending')) return 'In Progress';
-    if (statusStr.includes('closed') || statusStr.includes('resolved')) return 'Closed';
-    if (statusStr.includes('refused') || statusStr.includes('rejected')) return 'Refused';
-    return 'Open';
-  };
 
   const getStatusColor = (status: ComplaintStatus) => {
     switch (status) {

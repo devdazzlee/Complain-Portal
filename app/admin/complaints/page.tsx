@@ -168,8 +168,29 @@ export default function AdminComplaintsPage() {
 
   // Parse API responses
   // Statuses: hook already parses to array, but check for nested structure
-  const statuses = Array.isArray(statusesData) ? statusesData : 
+  const rawStatuses = Array.isArray(statusesData) ? statusesData : 
     ((statusesData as any)?.statuses || (statusesData as any)?.data || []);
+  
+  // Deduplicate statuses by mapped status value to prevent multiple selections
+  const statuses = useMemo(() => {
+    const seenStatuses = new Set<ComplaintStatus | string>();
+    return rawStatuses.filter((status: Record<string, unknown>) => {
+      const statusCode = String(status.code || '').toLowerCase();
+      const mappedStatus: ComplaintStatus = 
+        statusCode.includes('open') ? 'Open' :
+        statusCode.includes('progress') || statusCode.includes('pending') ? 'In Progress' :
+        statusCode.includes('closed') || statusCode.includes('resolved') ? 'Closed' :
+        statusCode.includes('refused') || statusCode.includes('rejected') ? 'Refused' :
+        'Open';
+      
+      if (seenStatuses.has(mappedStatus)) {
+        return false;
+      }
+      seenStatuses.add(mappedStatus);
+      return true;
+    });
+  }, [rawStatuses]);
+  
   // Types: service already returns array
   const types = Array.isArray(typesData) ? typesData : 
     ((typesData as any)?.types || (typesData as any)?.data || []);

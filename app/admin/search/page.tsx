@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '../../components/Layout';
 import { complaintService } from '../../../lib/services';
@@ -179,6 +179,21 @@ export default function AdvancedSearchPage() {
     if (statusStr.includes('hold')) return 'In Progress';
     return 'Open';
   };
+
+  // Deduplicate statuses by mapped status value to prevent multiple selections
+  const deduplicatedStatuses = useMemo(() => {
+    const seenStatuses = new Set<ComplaintStatus | string>();
+    return statuses.filter((status: Record<string, unknown>) => {
+      const statusName = (status.label as string) || (status.name as string) || (status.code as string) || '';
+      const mappedStatus = mapStatus(statusName);
+      
+      if (seenStatuses.has(mappedStatus)) {
+        return false;
+      }
+      seenStatuses.add(mappedStatus);
+      return true;
+    });
+  }, [statuses]);
 
   // Map priority label to ID
   const getPriorityId = (priorityLabel: Priority | 'All'): number | undefined => {
@@ -567,11 +582,10 @@ export default function AdvancedSearchPage() {
                 <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
                   <SelectItem value="All" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">All Status</SelectItem>
                   {(() => {
-                    console.log('Rendering statuses dropdown, statuses:', statuses, 'length:', statuses?.length);
-                    if (!statuses || statuses.length === 0) {
+                    if (!deduplicatedStatuses || deduplicatedStatuses.length === 0) {
                       return <SelectItem value="loading" disabled className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Loading...</SelectItem>;
                     }
-                    return statuses.map((status: Record<string, unknown>) => {
+                    return deduplicatedStatuses.map((status: Record<string, unknown>) => {
                       const statusName = (status.label as string) || (status.name as string) || (status.code as string) || '';
                       const statusValue = mapStatus(statusName);
                       if (!statusName) return null;
@@ -689,7 +703,7 @@ export default function AdvancedSearchPage() {
             <div className="mb-4">
               <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>Status</label>
               <div className="flex flex-wrap gap-2">
-                {statuses.map((status: Record<string, unknown>) => {
+                {deduplicatedStatuses.map((status: Record<string, unknown>) => {
                   const statusName = (status.label as string) || (status.name as string) || (status.code as string) || '';
                   const statusValue = mapStatus(statusName);
                   return (
