@@ -7,11 +7,11 @@ import { useApp } from '../../../../context/AppContext';
 import { complaintService } from '../../../../../lib/services';
 import { useDashboardStore } from '../../../../../lib/stores/dashboardStore';
 import { useComplaintDetailStore } from '../../../../../lib/stores/complaintDetailStore';
-import { ProblemType, Priority, Complaint } from '../../../../types';
+import { ProblemType, Priority, Complaint, ComplaintStatus } from '../../../../types';
 import Loader from '../../../../components/Loader';
 import Toast from '../../../../components/Toast';
 import { VoiceRecognition } from '../../../../utils/voiceRecognition';
-import { useComplaint, useDsws, useClients, useTypes, usePriorities, useUpdateComplaint } from '../../../../../lib/hooks';
+import { useComplaint, useDsws, useClients, useTypes, usePriorities, useUpdateComplaint, useComplaintStatuses } from '../../../../../lib/hooks';
 import {
   Select,
   SelectContent,
@@ -85,6 +85,7 @@ export default function AdminEditComplaintPage() {
   const { data: clients = [], isLoading: clientsLoading } = useClients();
   const { data: types = [], isLoading: typesLoading } = useTypes();
   const { data: priorities = [], isLoading: prioritiesLoading } = usePriorities();
+  const { data: statuses = [], isLoading: statusesLoading } = useComplaintStatuses();
   const updateComplaintMutation = useUpdateComplaint();
   
   const [complaint, setComplaint] = useState<Complaint & { rawData?: Record<string, unknown> } | null>(null);
@@ -95,6 +96,7 @@ export default function AdminEditComplaintPage() {
     clientId: '',
     typeOfProblem: '' as ProblemType | '',
     priority: 'Low' as Priority,
+    status: '' as string, // Store status ID as string
     description: '',
     remarks: '',
   });
@@ -184,11 +186,18 @@ export default function AdminEditComplaintPage() {
         (p.code as string)?.toLowerCase() === mappedComplaint.priority.toLowerCase()
       );
       
+      // Get status ID from API response
+      const complaintRawData = complaintData as any;
+      const history = (complaintRawData?.history as Array<Record<string, unknown>>) || [];
+      const latestStatus = history.length > 0 ? history[history.length - 1]?.status as Record<string, unknown> : null;
+      const statusId = latestStatus?.id || latestStatus?.status_id || complaintRawData?.status_id || '1';
+      
       setFormData({
         dswId: foundDswId,
         clientId: foundClientId,
         typeOfProblem: mappedComplaint.typeOfProblem as ProblemType,
         priority: mappedComplaint.priority,
+        status: String(statusId), // Store status ID
         description: mappedComplaint.description,
         remarks: mappedComplaint.timeline?.[0]?.description || '',
       });
@@ -217,6 +226,30 @@ export default function AdminEditComplaintPage() {
     return type?.id as number | undefined;
   };
 
+  // Get status ID from formData (which now stores status ID as string)
+  const getStatusId = (statusIdOrName: string | ComplaintStatus): number | undefined => {
+    if (!statusIdOrName) return undefined;
+    // If it's already a number (ID), return it
+    const numericId = parseInt(String(statusIdOrName), 10);
+    if (!isNaN(numericId)) {
+      const status = statuses.find((s: Record<string, unknown>) => 
+        s.id === numericId || s.status_id === numericId
+      );
+      return (status?.id as number) || (status?.status_id as number) || numericId;
+    }
+    // Otherwise, search by name (for backward compatibility)
+    const statusName = String(statusIdOrName).toLowerCase();
+    const status = statuses.find((s: Record<string, unknown>) => {
+      const label = String(s.label || s.name || s.code || '').toLowerCase();
+      return label.includes(statusName) || 
+             (statusName === 'open' && label.includes('open')) ||
+             (statusName === 'in progress' && (label.includes('progress') || label.includes('pending') || label.includes('hold'))) ||
+             (statusName === 'closed' && (label.includes('closed') || label.includes('resolved'))) ||
+             (statusName === 'refused' && (label.includes('refused') || label.includes('rejected')));
+    });
+    return (status?.id as number) || (status?.status_id as number) || undefined;
+  };
+
   // Get priority ID from priority name
   const getPriorityId = (priorityName: Priority): number | undefined => {
     if (!priorityName) return undefined;
@@ -240,9 +273,10 @@ export default function AdminEditComplaintPage() {
 
     const typeId = getTypeId(formData.typeOfProblem);
     const priorityId = getPriorityId(formData.priority);
+    const statusId = getStatusId(formData.status);
 
-    if (!typeId || !priorityId) {
-      setToast({ message: 'Invalid type or priority selected', type: 'error' });
+    if (!typeId || !priorityId || !statusId) {
+      setToast({ message: 'Invalid type, priority, or status selected', type: 'error' });
       return;
     }
 
@@ -256,11 +290,7 @@ export default function AdminEditComplaintPage() {
       if (formData.clientId) formDataToSend.append('client_id', formData.clientId);
       formDataToSend.append('description', formData.description);
       
-      // Get current status ID from complaint
-      const rawData = complaint.rawData || complaintData;
-      const history = (rawData?.history as Array<Record<string, unknown>>) || [];
-      const latestStatus = history.length > 0 ? history[history.length - 1]?.status as Record<string, unknown> : null;
-      const statusId = latestStatus?.id || 1; // Default to Open
+      // Use status from formData (already calculated above)
       formDataToSend.append('status_id', String(statusId));
       
       formDataToSend.append('priority_id', String(priorityId));
@@ -392,18 +422,18 @@ export default function AdminEditComplaintPage() {
 
   return (
     <Layout role="admin">
-      <div className="max-w-3xl mx-auto">
-        <h1 className="text-4xl md:text-5xl font-bold mb-3" style={{ color: '#E6E6E6' }}>Edit Complaint</h1>
+      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3" style={{ color: '#E6E6E6' }}>Edit Complaint</h1>
         <div className="flex items-center gap-4 mb-8" style={{ color: '#E6E6E6', opacity: 0.8, fontSize: '1.125rem' }}>
           <span>Complaint ID: {complaint.complaintId}</span>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           {/* DSW Selection */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>DSW (Direct Service Worker)</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>DSW (Direct Service Worker)</label>
             <Select value={formData.dswId} onValueChange={(value) => setFormData({ ...formData, dswId: value })}>
-              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
                 <SelectValue placeholder="Search or select DSW..." />
               </SelectTrigger>
               <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
@@ -475,9 +505,9 @@ export default function AdminEditComplaintPage() {
 
           {/* Client Selection */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Client</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Client</label>
             <Select value={formData.clientId} onValueChange={(value) => setFormData({ ...formData, clientId: value })}>
-              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
                 <SelectValue placeholder="Search or select client..." />
               </SelectTrigger>
               <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
@@ -549,9 +579,9 @@ export default function AdminEditComplaintPage() {
 
           {/* Priority */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Priority</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Priority</label>
             <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value as Priority })}>
-              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
@@ -559,6 +589,48 @@ export default function AdminEditComplaintPage() {
                 <SelectItem value="Medium" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Medium</SelectItem>
                 <SelectItem value="High" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">High</SelectItem>
                 <SelectItem value="Urgent" className="hover:bg-[#2A2B30] focus:bg-[#2A2B30]">Urgent</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Status Selection */}
+          <div>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Status *</label>
+            <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+                <SelectValue placeholder="Select status..." />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
+                {statusesLoading ? (
+                  <SelectItem value="loading" disabled className="focus:bg-[#2A2B30]">Loading statuses...</SelectItem>
+                ) : Array.isArray(statuses) && statuses.length > 0 ? (
+                  statuses.map((status: Record<string, unknown>) => {
+                    const statusLabel = String(status.label || status.name || status.code || '');
+                    const statusId = String(status.id || status.status_id || '');
+                    return (
+                      <SelectItem 
+                        key={statusId} 
+                        value={statusId}
+                        className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
+                        style={{
+                          border: 'none',
+                          padding: '10px 12px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#2A2B30';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        {statusLabel}
+                      </SelectItem>
+                    );
+                  })
+                ) : (
+                  <SelectItem value="Open" className="focus:bg-[#2A2B30]">Open</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -600,7 +672,7 @@ export default function AdminEditComplaintPage() {
 
           {/* Description */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Describe What Happened *</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Describe What Happened *</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -676,7 +748,7 @@ export default function AdminEditComplaintPage() {
 
           {/* Remarks */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Remarks (Optional)</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Remarks (Optional)</label>
             <textarea
               value={formData.remarks}
               onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
@@ -700,7 +772,7 @@ export default function AdminEditComplaintPage() {
 
           {/* File Upload */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Attach Files (Optional)</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Attach Files (Optional)</label>
             {attachments.length > 0 && (
               <div className="mb-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

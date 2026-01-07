@@ -12,13 +12,13 @@ import {
 import Layout from '../../../components/Layout';
 import { useApp } from '../../../context/AppContext';
 import { complaintService } from '../../../../lib/services';
-import { ProblemType, Priority, ComplaintCategory, FileAttachment } from '../../../types';
+import { ProblemType, Priority, ComplaintCategory, FileAttachment, ComplaintStatus } from '../../../types';
 import Loader from '../../../components/Loader';
 import Toast from '../../../components/Toast';
 import FileGallery from '../../../components/FileGallery';
 import { VoiceRecognition } from '../../../utils/voiceRecognition';
 import { useDashboardStore } from '../../../../lib/stores/dashboardStore';
-import { useDsws, useClients, useTypes, usePriorities, useAddType } from '../../../../lib/hooks';
+import { useDsws, useClients, useTypes, usePriorities, useAddType, useComplaintStatuses } from '../../../../lib/hooks';
 
 // Helper function to get icon for type code/name
 const getTypeIcon = (code: string, name: string): string => {
@@ -44,6 +44,7 @@ export default function NewComplaintPage() {
     typeOfProblem: '' as string | '',
     category: '' as ComplaintCategory | '',
     priority: 'Low' as Priority,
+    status: '' as string, // Store status ID as string
     description: '',
     remarks: '',
     tags: [] as string[],
@@ -61,6 +62,7 @@ export default function NewComplaintPage() {
   const { data: clients = [], isLoading: clientsLoading, error: clientsError } = useClients();
   const { data: types = [], isLoading: typesLoading, error: typesError } = useTypes();
   const { data: priorities = [], isLoading: prioritiesLoading, error: prioritiesError } = usePriorities();
+  const { data: statuses = [], isLoading: statusesLoading, error: statusesError } = useComplaintStatuses();
   const addTypeMutation = useAddType();
   
   // State for custom type modal
@@ -70,8 +72,8 @@ export default function NewComplaintPage() {
 
   // Show toast if any data fails to load (non-blocking)
   useEffect(() => {
-    if (dswsError || clientsError || typesError || prioritiesError) {
-      const errors = [dswsError, clientsError, typesError, prioritiesError].filter(Boolean);
+    if (dswsError || clientsError || typesError || prioritiesError || statusesError) {
+      const errors = [dswsError, clientsError, typesError, prioritiesError, statusesError].filter(Boolean);
       if (errors.length > 0) {
         setToast({ 
           message: 'Some form data failed to load. You can still submit the form.', 
@@ -79,7 +81,7 @@ export default function NewComplaintPage() {
         });
       }
     }
-  }, [dswsError, clientsError, typesError, prioritiesError]);
+  }, [dswsError, clientsError, typesError, prioritiesError, statusesError]);
 
   // Filter DSWs and Clients based on search (using React Query data)
   const filteredDsws = dsws.filter(dsw =>
@@ -89,6 +91,30 @@ export default function NewComplaintPage() {
   const filteredClients = clients.filter(client =>
     client.name.toLowerCase().includes(clientSearch.toLowerCase())
   );
+
+  // Get status ID from formData (which now stores status ID as string)
+  const getStatusId = (statusIdOrName: string): number | undefined => {
+    if (!statusIdOrName) return undefined;
+    // If it's already a number (ID), return it
+    const numericId = parseInt(String(statusIdOrName), 10);
+    if (!isNaN(numericId)) {
+      const status = statuses.find((s: Record<string, unknown>) => 
+        s.id === numericId || s.status_id === numericId
+      );
+      return (status?.id as number) || (status?.status_id as number) || numericId;
+    }
+    // Otherwise, search by name (for backward compatibility)
+    const statusName = String(statusIdOrName).toLowerCase();
+    const status = statuses.find((s: Record<string, unknown>) => {
+      const label = String(s.label || s.name || s.code || '').toLowerCase();
+      return label.includes(statusName) || 
+             (statusName === 'open' && label.includes('open')) ||
+             (statusName === 'in progress' && (label.includes('progress') || label.includes('pending') || label.includes('hold'))) ||
+             (statusName === 'closed' && (label.includes('closed') || label.includes('resolved'))) ||
+             (statusName === 'refused' && (label.includes('refused') || label.includes('rejected')));
+    });
+    return (status?.id as number) || (status?.status_id as number) || undefined;
+  };
 
   // Get type ID from type name or ID
   const getTypeId = (typeValue: string): number | undefined => {
@@ -168,11 +194,15 @@ export default function NewComplaintPage() {
 
     const typeId = getTypeId(formData.typeOfProblem);
     const priorityId = getPriorityId(formData.priority);
+    const statusId = getStatusId(formData.status);
 
     if (!typeId || !priorityId) {
       setToast({ message: 'Invalid type or priority selected', type: 'error' });
       return;
     }
+    
+    // If no status selected, default to first status (usually "Open")
+    const finalStatusId = statusId || (statuses.length > 0 ? String(statuses[0]?.id || statuses[0]?.status_id || '1') : '1');
 
     setLoading(true);
     try {
@@ -181,7 +211,7 @@ export default function NewComplaintPage() {
       formDataToSend.append('client_id', formData.clientId);
       formDataToSend.append('description', formData.description);
       formDataToSend.append('case_start_by', String(currentUser?.id || ''));
-      formDataToSend.append('status_id', '1'); // Open
+      formDataToSend.append('status_id', String(finalStatusId));
       formDataToSend.append('priority_id', String(priorityId));
       formDataToSend.append('type_id', String(typeId));
       formDataToSend.append('remarks', formData.remarks || `Complaint created by ${currentUser?.name || 'provider'}`);
@@ -281,18 +311,18 @@ export default function NewComplaintPage() {
 
   return (
     <Layout role="provider">
-      <div className="max-w-3xl mx-auto">
-        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-3" style={{ color: '#E6E6E6' }}>Tell us what happened</h1>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6 md:mb-8 text-base md:text-lg" style={{ color: '#E6E6E6', opacity: 0.8 }}>
+      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3" style={{ color: '#E6E6E6' }}>Tell us what happened</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4 sm:mb-6 md:mb-8 text-sm sm:text-base md:text-lg" style={{ color: '#E6E6E6', opacity: 0.8 }}>
           <span>Date: {dateStr}</span>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           {/* DSW Selection */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>DSW (Direct Service Worker) *</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>DSW (Direct Service Worker) *</label>
             <Select value={formData.dswId} onValueChange={(value) => setFormData({ ...formData, dswId: value })}>
-              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
                 <SelectValue placeholder="Search or select DSW..." />
               </SelectTrigger>
               <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
@@ -364,9 +394,9 @@ export default function NewComplaintPage() {
 
           {/* Client Selection */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Client *</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Client *</label>
             <Select value={formData.clientId} onValueChange={(value) => setFormData({ ...formData, clientId: value })}>
-              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
                 <SelectValue placeholder="Search or select client..." />
               </SelectTrigger>
               <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
@@ -587,9 +617,9 @@ export default function NewComplaintPage() {
 
           {/* Priority Selection */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Priority *</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Priority *</label>
             <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value as Priority })}>
-              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
                 <SelectValue placeholder="Select priority..." />
               </SelectTrigger>
               <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
@@ -623,9 +653,51 @@ export default function NewComplaintPage() {
             </Select>
           </div>
 
+          {/* Status Selection */}
+          <div>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Status *</label>
+            <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+              <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
+                <SelectValue placeholder="Select status..." />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
+                {statusesLoading ? (
+                  <SelectItem value="loading" disabled className="focus:bg-[#2A2B30]">Loading statuses...</SelectItem>
+                ) : Array.isArray(statuses) && statuses.length > 0 ? (
+                  statuses.map((status: Record<string, unknown>) => {
+                    const statusLabel = String(status.label || status.name || status.code || '');
+                    const statusId = String(status.id || status.status_id || '');
+                    return (
+                      <SelectItem 
+                        key={statusId} 
+                        value={statusId}
+                        className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
+                        style={{
+                          border: 'none',
+                          padding: '10px 12px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#2A2B30';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        {statusLabel}
+                      </SelectItem>
+                    );
+                  })
+                ) : (
+                  <SelectItem value="1" className="focus:bg-[#2A2B30]">Open</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Remarks */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Remarks (Optional)</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Remarks (Optional)</label>
             <textarea
               value={formData.remarks}
               onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
@@ -649,7 +721,7 @@ export default function NewComplaintPage() {
 
           {/* Description */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Describe What Happened *</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Describe What Happened *</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -725,7 +797,7 @@ export default function NewComplaintPage() {
 
           {/* File Upload */}
           <div>
-            <label className="block mb-3" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Attach Files (Optional)</label>
+            <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Attach Files (Optional)</label>
             {attachments.length > 0 && (
               <div className="mb-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
