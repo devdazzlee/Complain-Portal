@@ -330,7 +330,7 @@ function UserManagementContent() {
 
   return (
     <Layout role="admin">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto px-4">
         {toast && (
           <Toast
             message={toast.message}
@@ -339,7 +339,7 @@ function UserManagementContent() {
           />
         )}
 
-        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6" style={{ color: '#E6E6E6' }}>
+        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6" style={{ color: '#E6E6E6' }}>
           User Management
         </h1>
 
@@ -359,13 +359,13 @@ function UserManagementContent() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by name or email..."
-                className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0 outline-none"
+                className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-sm sm:text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0 outline-none"
               />
             </div>
             <div>
               <label className="block mb-2 text-base md:text-lg font-semibold" style={{ color: '#E6E6E6' }}>Filter by Role</label>
               <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as 'All' | 'provider' | 'admin')}>
-                <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
+                <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-sm sm:text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
@@ -425,7 +425,7 @@ function UserManagementContent() {
                           type="email"
                           value={editForm.email}
                           onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                          className="w-full bg-[#2A2B30] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base px-4 py-3 rounded-lg focus:border-[#2AB3EE] focus:ring-0 outline-none"
+                          className="w-full bg-[#2A2B30] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base px-4 py-3 rounded-lg focus:border-[#2AB3EE] focus:ring-0 outline-none min-h-[48px] sm:min-h-[48px]"
                         />
                       </div>
                       <div>
@@ -442,7 +442,7 @@ function UserManagementContent() {
                             });
                           }}
                         >
-                          <SelectTrigger className="w-full bg-[#2A2B30] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base px-4 py-3 rounded-lg focus:border-[#2AB3EE] focus:ring-0">
+                          <SelectTrigger className="w-full bg-[#2A2B30] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base px-4 py-3 rounded-lg focus:border-[#2AB3EE] focus:ring-0 min-h-[48px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6]">
@@ -458,11 +458,11 @@ function UserManagementContent() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="flex gap-3">
+                      <div className="flex flex-col sm:flex-row gap-3">
                         <button
                           onClick={handleSave}
                           disabled={updating}
-                          className="px-4 py-2 rounded-lg font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-4 py-2 rounded-lg font-semibold text-base disabled:opacity-50 disabled:cursor-not-allowed sm:flex-none"
                           style={{ backgroundColor: '#2AB3EE', color: '#E6E6E6', minHeight: '48px' }}
                           onMouseEnter={(e) => {
                             if (!updating) {
@@ -479,7 +479,7 @@ function UserManagementContent() {
                         </button>
                         <button
                           onClick={handleCancel}
-                          className="px-4 py-2 rounded-lg font-semibold text-base"
+                          className="px-4 py-2 rounded-lg font-semibold text-base sm:flex-none"
                           style={{ backgroundColor: '#2A2B30', color: '#E6E6E6', border: '2px solid #E6E6E6', minHeight: '48px' }}
                           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1F2022'}
                           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2A2B30'}
@@ -527,7 +527,7 @@ function UserManagementContent() {
                       </div>
                       <button
                         onClick={() => handleEdit(user)}
-                        className="px-5 md:px-6 py-2.5 md:py-3 rounded-lg font-semibold text-sm md:text-base whitespace-nowrap transition-all duration-200 shrink-0"
+                        className="w-full sm:w-auto px-5 md:px-6 py-2.5 md:py-3 rounded-lg font-semibold text-sm md:text-base whitespace-nowrap transition-all duration-200 shrink-0"
                         style={{ 
                           backgroundColor: '#2AB3EE', 
                           color: '#FFFFFF', 
@@ -553,19 +553,21 @@ function UserManagementContent() {
                 </div>
               ))}
               </div>
-              {filteredUsers.length > itemsPerPage && (
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={setCurrentPage}
-                  itemsPerPage={itemsPerPage}
-                  totalItems={filteredUsers.length}
-                  itemLabel="users"
-                />
-              )}
             </>
           )}
         </div>
+
+        {/* Pagination */}
+        {!loading && filteredUsers.length > itemsPerPage && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            totalItems={filteredUsers.length}
+            itemLabel="users"
+          />
+        )}
       </div>
     </Layout>
   );

@@ -798,19 +798,16 @@ export default function AdminEditComplaintPage() {
             <div className="relative">
               <input
                 type="text"
-                placeholder="Upload photos, PDFs, or documents (max 10MB per file)"
+                placeholder="Upload photos and documents"
                 readOnly
                 value={attachments.length > 0 ? `${attachments.length} file(s) selected` : ''}
-                className="w-full rounded-lg outline-none transition placeholder:opacity-50 pr-16"
+                className="w-full rounded-lg outline-none transition placeholder:opacity-50 text-sm sm:text-base md:text-lg pr-12 sm:pr-14 md:pr-16 py-3 px-4 sm:py-3.5 sm:px-4.5 md:py-4 md:px-5 min-h-[48px] sm:min-h-[52px] md:min-h-[56px]"
                 style={{ 
                   backgroundColor: '#1F2022', 
                   borderColor: '#E6E6E6', 
                   borderWidth: '2px', 
                   borderStyle: 'solid', 
-                  color: '#E6E6E6',
-                  fontSize: '1.125rem',
-                  padding: '16px 20px',
-                  minHeight: '56px'
+                  color: '#E6E6E6'
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
                 onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
@@ -828,24 +825,19 @@ export default function AdminEditComplaintPage() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 cursor-pointer transition-opacity"
+                className="absolute right-2 sm:right-3 md:right-4 top-1/2 transform -translate-y-1/2 cursor-pointer transition-opacity flex items-center justify-center min-w-[36px] sm:min-w-[40px] md:min-w-[44px] min-h-[36px] sm:min-h-[40px] md:min-h-[44px]"
                 style={{ 
-                  color: '#E6E6E6',
-                  minWidth: '44px',
-                  minHeight: '44px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
+                  color: '#E6E6E6'
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
                 onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
               >
-                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
               </button>
             </div>
-            <p className="mt-2" style={{ color: '#E6E6E6', opacity: 0.7, fontSize: '1rem' }}>You can upload multiple files. Supported: Images, PDF, DOC, DOCX. Max 10MB per file.</p>
+            <p className="mt-2 text-xs sm:text-sm md:text-base" style={{ color: '#E6E6E6', opacity: 0.7 }}>You can upload multiple files. Supported: Images, PDF, DOC, DOCX. Max 10MB per file.</p>
           </div>
 
           {/* Action Buttons */}

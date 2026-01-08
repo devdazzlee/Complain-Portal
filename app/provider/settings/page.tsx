@@ -277,7 +277,7 @@ export default function SettingsPage() {
                   type={showPasswords.newPassword ? "text" : "password"}
                   value={passwordForm.newPassword}
                   onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                  placeholder="Enter new password (min 6 characters)"
+                  placeholder="Enter new password"
                   className="w-full rounded-lg outline-none transition bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg px-5 py-4 pr-12 min-h-[56px] focus:border-[#2AB3EE]"
                   required
                   minLength={6}

@@ -156,50 +156,24 @@ export default function Sidebar({ role }: SidebarProps) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full z-50 transition-transform duration-300 ease-in-out flex flex-col border-r ${
+        className={`fixed top-0 left-0 h-full z-50 transition-transform duration-300 ease-in-out flex flex-col border-r w-[260px] md:w-[280px] ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
         style={{
-          width: "280px",
           backgroundColor: "#1F2022",
           borderColor: "#2A2B30",
         }}
       >
-        {/* Close button for mobile - inside sidebar */}
+        {/* Logo - Mobile and Desktop */}
         <div
-          className="flex items-center justify-between p-6 md:hidden border-b"
+          className="flex items-center p-4 sm:p-5 md:p-6 border-b"
           style={{ borderColor: "#2A2B30" }}
         >
           <Link
             href={dashboardPath}
-            className="flex items-center gap-3"
+            className="flex items-center gap-2 sm:gap-3"
             onClick={() => setIsOpen(false)}
           >
-            <Logo size="md" showText={true} />
-          </Link>
-          <button
-            onClick={() => setIsOpen(false)}
-            className="p-2 rounded-lg transition-colors"
-            style={{
-              color: "#E6E6E6",
-              minWidth: "40px",
-              minHeight: "40px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-            aria-label="Close menu"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Logo for desktop */}
-        <div
-          className="hidden md:flex items-center p-6 border-b"
-          style={{ borderColor: "#2A2B30" }}
-        >
-          <Link href={dashboardPath} className="flex items-center gap-3">
             <Logo size="md" showText={true} />
           </Link>
         </div>
@@ -218,10 +192,9 @@ export default function Sidebar({ role }: SidebarProps) {
                     setIsOpen(false);
                   }
                 }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-lg font-semibold ${
-                  active ? "text-white" : "text-gray-400 hover:text-white"
-                }`}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-base md:text-lg"
                 style={{
+                  color: active ? "#FFFFFF" : "#E6E6E6",
                   backgroundColor: active ? "#2AB3EE" : "transparent",
                 }}
                 onMouseEnter={(e) => {

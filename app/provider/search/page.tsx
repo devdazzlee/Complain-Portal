@@ -504,7 +504,7 @@ export default function AdvancedSearchPage() {
               type="text"
               value={filters.searchQuery}
               onChange={(e) => setFilters({ ...filters, searchQuery: e.target.value })}
-              placeholder="Search by complaint ID, caretaker, description..."
+              placeholder="Search by complain"
               className="flex-1 rounded-lg outline-none transition"
               style={{
                 backgroundColor: '#1F2022',

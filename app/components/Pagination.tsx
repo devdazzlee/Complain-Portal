@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface PaginationProps {
   currentPage: number;
@@ -21,36 +21,68 @@ export default function Pagination({
 }: PaginationProps) {
   const startItem = (currentPage - 1) * itemsPerPage + 1;
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640); // sm breakpoint
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const getPageNumbers = () => {
     const pages: (number | string)[] = [];
-    const maxVisible = 5;
-
-    if (totalPages <= maxVisible) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
+    
+    if (isMobile) {
+      // On mobile, show only 2 pages: current and next (or previous if on last page)
+      if (currentPage === totalPages && totalPages > 1) {
+        // On last page, show previous and current
+        pages.push(totalPages - 1);
+        pages.push(totalPages);
+      } else if (currentPage === 1) {
+        // On first page, show current and next
+        pages.push(1);
+        if (totalPages > 1) {
+          pages.push(2);
+        }
+      } else {
+        // In middle, show current and next
+        pages.push(currentPage);
+        if (currentPage < totalPages) {
+          pages.push(currentPage + 1);
+        }
       }
     } else {
-      if (currentPage <= 3) {
-        for (let i = 1; i <= 4; i++) {
-          pages.push(i);
-        }
-        pages.push('...');
-        pages.push(totalPages);
-      } else if (currentPage >= totalPages - 2) {
-        pages.push(1);
-        pages.push('...');
-        for (let i = totalPages - 3; i <= totalPages; i++) {
+      // Desktop: show more pages
+      const maxVisible = 5;
+      if (totalPages <= maxVisible) {
+        for (let i = 1; i <= totalPages; i++) {
           pages.push(i);
         }
       } else {
-        pages.push(1);
-        pages.push('...');
-        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
-          pages.push(i);
+        if (currentPage <= 3) {
+          for (let i = 1; i <= 4; i++) {
+            pages.push(i);
+          }
+          pages.push('...');
+          pages.push(totalPages);
+        } else if (currentPage >= totalPages - 2) {
+          pages.push(1);
+          pages.push('...');
+          for (let i = totalPages - 3; i <= totalPages; i++) {
+            pages.push(i);
+          }
+        } else {
+          pages.push(1);
+          pages.push('...');
+          for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+            pages.push(i);
+          }
+          pages.push('...');
+          pages.push(totalPages);
         }
-        pages.push('...');
-        pages.push(totalPages);
       }
     }
 
@@ -61,20 +93,18 @@ export default function Pagination({
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t" style={{ borderColor: '#2A2B30' }}>
-      <div className="text-sm md:text-base" style={{ color: '#E6E6E6', opacity: 0.7 }}>
+      <div className="text-xs sm:text-sm md:text-base whitespace-nowrap hidden sm:block" style={{ color: '#E6E6E6', opacity: 0.7 }}>
         Showing {startItem} to {endItem} of {totalItems} {itemLabel}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 sm:gap-2 md:gap-3 w-full sm:w-auto justify-center sm:justify-start flex-nowrap overflow-x-auto">
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="px-3 md:px-4 py-2 rounded-lg font-semibold text-sm md:text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-2.5 sm:px-3 md:px-4 py-2 rounded-lg font-semibold text-xs sm:text-sm md:text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px] sm:min-h-[40px] md:min-h-[44px] min-w-[36px] sm:min-w-[40px] md:min-w-[44px] shrink-0 flex-shrink-0"
           style={{
             backgroundColor: currentPage === 1 ? '#2A2B30' : '#2AB3EE',
             color: '#E6E6E6',
-            minHeight: '44px',
-            minWidth: '44px',
           }}
           onMouseEnter={(e) => {
             if (currentPage !== 1) {
@@ -92,13 +122,13 @@ export default function Pagination({
           </svg>
         </button>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2 flex-nowrap shrink-0">
           {getPageNumbers().map((page, index) => {
             if (page === '...') {
               return (
                 <span
                   key={`ellipsis-${index}`}
-                  className="px-2 py-2 text-sm md:text-base"
+                  className="px-1 sm:px-2 py-2 text-xs sm:text-sm md:text-base whitespace-nowrap hidden sm:inline-block shrink-0"
                   style={{ color: '#E6E6E6', opacity: 0.5 }}
                 >
                   ...
@@ -113,7 +143,7 @@ export default function Pagination({
               <button
                 key={pageNum}
                 onClick={() => onPageChange(pageNum)}
-                className="px-3 md:px-4 py-2 rounded-lg font-semibold text-sm md:text-base transition-colors min-h-[44px] min-w-[44px]"
+                className="px-2.5 sm:px-3 md:px-4 py-2 rounded-lg font-semibold text-xs sm:text-sm md:text-base transition-colors min-h-[36px] sm:min-h-[40px] md:min-h-[44px] min-w-[36px] sm:min-w-[40px] md:min-w-[44px] whitespace-nowrap shrink-0 flex-shrink-0"
                 style={{
                   backgroundColor: isActive ? '#2AB3EE' : '#2A2B30',
                   color: '#E6E6E6',
@@ -139,12 +169,10 @@ export default function Pagination({
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="px-3 md:px-4 py-2 rounded-lg font-semibold text-sm md:text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-2.5 sm:px-3 md:px-4 py-2 rounded-lg font-semibold text-xs sm:text-sm md:text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px] sm:min-h-[40px] md:min-h-[44px] min-w-[36px] sm:min-w-[40px] md:min-w-[44px] shrink-0 flex-shrink-0"
           style={{
             backgroundColor: currentPage === totalPages ? '#2A2B30' : '#2AB3EE',
             color: '#E6E6E6',
-            minHeight: '44px',
-            minWidth: '44px',
           }}
           onMouseEnter={(e) => {
             if (currentPage !== totalPages) {

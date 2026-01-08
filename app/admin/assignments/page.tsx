@@ -389,7 +389,13 @@ export default function AssignmentWorkflowPage() {
                     })() : 'Select a complaint...'}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
+                <SelectContent 
+                  className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80" 
+                  position="popper"
+                  sideOffset={4}
+                  align="start"
+                  style={{ maxWidth: 'calc(100vw - 2rem)', width: 'var(--radix-select-trigger-width)' }}
+                >
                   <div
                     className="px-3 py-2 sticky top-0 z-10"
                     style={{ backgroundColor: '#1F2022', borderBottom: '1px solid #2A2B30' }}
@@ -464,7 +470,13 @@ export default function AssignmentWorkflowPage() {
                 <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus:border-[#2AB3EE] focus:ring-0">
                   <SelectValue placeholder="Select a provider..." />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80">
+                <SelectContent 
+                  className="bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] max-h-80" 
+                  position="popper"
+                  sideOffset={4}
+                  align="start"
+                  style={{ maxWidth: 'calc(100vw - 2rem)', width: 'var(--radix-select-trigger-width)' }}
+                >
                   <div
                     className="px-3 py-2 sticky top-0 z-10"
                     style={{ backgroundColor: '#1F2022', borderBottom: '1px solid #2A2B30' }}

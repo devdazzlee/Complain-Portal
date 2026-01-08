@@ -90,7 +90,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search complaints by ID, caretaker, type, or description..."
+              placeholder="Search complaints"
               autoFocus
               className="w-full rounded-lg outline-none transition placeholder:opacity-50 border-2 border-[#E6E6E6] text-[#E6E6E6] text-lg pr-5 py-4 min-h-[56px] focus:border-[#2AB3EE]"
               style={{ 
