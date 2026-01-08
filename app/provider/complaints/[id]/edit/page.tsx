@@ -186,8 +186,7 @@ export default function EditComplaintPage() {
         (p.code as string)?.toLowerCase() === mappedComplaint.priority.toLowerCase()
       );
       
-      // Get status ID from API response
-      const rawData = complaintData as any;
+      // Get status ID from API response (using rawData already defined above)
       const history = (rawData?.history as Array<Record<string, unknown>>) || [];
       const latestStatus = history.length > 0 ? history[history.length - 1]?.status as Record<string, unknown> : null;
       const statusId = latestStatus?.id || latestStatus?.status_id || rawData?.status_id || '1';

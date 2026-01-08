@@ -17,18 +17,22 @@ import {
   HelpCircle,
   Users,
   Workflow,
-  X,
-  Menu,
 } from "lucide-react";
 
 interface SidebarProps {
   role: "provider" | "admin";
+  isOpen?: boolean;
+  setIsOpen?: (open: boolean) => void;
 }
 
-export default function Sidebar({ role }: SidebarProps) {
+export default function Sidebar({ role, isOpen: externalIsOpen, setIsOpen: externalSetIsOpen }: SidebarProps) {
   const pathname = usePathname();
   const { currentUser } = useApp();
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  
+  // Use external state if provided, otherwise use internal state
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
+  const setIsOpen = externalSetIsOpen || setInternalIsOpen;
 
   // Close sidebar when clicking outside on mobile
   useEffect(() => {
@@ -37,7 +41,8 @@ export default function Sidebar({ role }: SidebarProps) {
         const target = event.target as HTMLElement;
         if (
           !target.closest("aside") &&
-          !target.closest('button[aria-label="Toggle menu"]')
+          !target.closest('button[aria-label="Toggle menu"]') &&
+          !target.closest('header')
         ) {
           setIsOpen(false);
         }
@@ -46,7 +51,7 @@ export default function Sidebar({ role }: SidebarProps) {
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, setIsOpen]);
 
   // Close sidebar on mobile when route changes
   useEffect(() => {
@@ -128,24 +133,6 @@ export default function Sidebar({ role }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile Toggle Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 left-4 z-50 md:hidden p-3 rounded-lg transition-colors"
-        style={{
-          backgroundColor: "#2A2B30",
-          color: "#E6E6E6",
-          minWidth: "48px",
-          minHeight: "48px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-        aria-label="Toggle menu"
-      >
-        {isOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
-
       {/* Overlay for mobile */}
       {isOpen && (
         <div

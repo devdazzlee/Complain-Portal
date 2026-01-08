@@ -311,15 +311,16 @@ export default function NewComplaintPage() {
 
   return (
     <Layout role="provider">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+      <div className="max-w-3xl mx-auto px-4 md:px-5 sm:px-6 w-full min-w-0 overflow-x-hidden">
+        <div className="w-full min-w-0">
         <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3" style={{ color: '#E6E6E6' }}>Tell us what happened</h1>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4 sm:mb-6 md:mb-8 text-sm sm:text-base md:text-lg" style={{ color: '#E6E6E6', opacity: 0.8 }}>
           <span>Date: {dateStr}</span>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 w-full min-w-0">
           {/* DSW Selection */}
-          <div>
+          <div className="w-full min-w-0">
             <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>DSW (Direct Service Worker) *</label>
             <Select value={formData.dswId} onValueChange={(value) => setFormData({ ...formData, dswId: value })}>
               <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
@@ -330,7 +331,7 @@ export default function NewComplaintPage() {
                 position="popper"
                 sideOffset={4}
                 align="start"
-                style={{ maxWidth: 'calc(100vw - 2rem)' }}
+                style={{ width: 'var(--radix-select-trigger-width)', maxWidth: 'var(--radix-select-trigger-width)' }}
               >
                 <div
                   className="px-3 py-2 sticky top-0 z-10"
@@ -373,18 +374,7 @@ export default function NewComplaintPage() {
                     <SelectItem 
                       key={dsw.id} 
                       value={String(dsw.id)} 
-                      className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
-                      style={{
-                        border: 'none',
-                        padding: '10px 12px',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#2A2B30';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
+                      className="hover:bg-[#2A2B30] focus:bg-[#2A2B30] focus:outline-none focus:ring-0 focus:border-0 hover:outline-none hover:ring-0 hover:border-0"
                     >
                       {dsw.name}
                     </SelectItem>
@@ -399,7 +389,7 @@ export default function NewComplaintPage() {
           </div>
 
           {/* Client Selection */}
-          <div>
+          <div className="w-full min-w-0">
             <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Client *</label>
             <Select value={formData.clientId} onValueChange={(value) => setFormData({ ...formData, clientId: value })}>
               <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
@@ -410,7 +400,7 @@ export default function NewComplaintPage() {
                 position="popper"
                 sideOffset={4}
                 align="start"
-                style={{ maxWidth: 'calc(100vw - 2rem)' }}
+                style={{ width: 'var(--radix-select-trigger-width)', maxWidth: 'var(--radix-select-trigger-width)' }}
               >
                 <div
                   className="px-3 py-2 sticky top-0 z-10"
@@ -457,18 +447,7 @@ export default function NewComplaintPage() {
                     <SelectItem 
                       key={client.id} 
                       value={String(client.id)} 
-                      className="focus:bg-[#2A2B30] rounded-lg mx-2 my-1"
-                      style={{
-                        border: 'none',
-                        padding: '10px 12px',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#2A2B30';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
+                      className="hover:bg-[#2A2B30] focus:bg-[#2A2B30] focus:outline-none focus:ring-0 focus:border-0 hover:outline-none hover:ring-0 hover:border-0"
                     >
                       {client.name}
                     </SelectItem>
@@ -483,13 +462,13 @@ export default function NewComplaintPage() {
           </div>
 
           {/* Type of Problem */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <label className="block" style={{ color: '#E6E6E6', fontSize: '1.125rem', fontWeight: 500 }}>Choose one of the options</label>
+          <div className="w-full min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-4">
+              <label className="block text-sm sm:text-base md:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Choose one of the options</label>
               <button
                 type="button"
                 onClick={() => setShowAddTypeModal(true)}
-                className="px-3 py-1.5 rounded text-sm font-medium transition-colors"
+                className="px-3 py-1.5 rounded text-xs sm:text-sm font-medium transition-colors whitespace-nowrap self-start sm:self-auto"
                 style={{ 
                   backgroundColor: '#2AB3EE', 
                   color: '#E6E6E6',
@@ -524,13 +503,15 @@ export default function NewComplaintPage() {
                       key={typeId}
                       type="button"
                       onClick={() => setFormData({ ...formData, typeOfProblem: typeId })}
-                      className="rounded-lg border-2 transition-all"
+                      className="rounded-lg border-2 transition-all overflow-hidden"
                       style={{
                         borderColor: isSelected ? '#2AB3EE' : '#E6E6E6',
                         backgroundColor: isSelected ? 'rgba(42, 179, 238, 0.2)' : 'transparent',
                         borderWidth: '2px',
-                        padding: '20px 16px',
-                        minHeight: '100px'
+                        padding: '12px 8px',
+                        minHeight: '80px',
+                        width: '100%',
+                        boxSizing: 'border-box',
                       }}
                       onMouseEnter={(e) => {
                         if (!isSelected) {
@@ -543,8 +524,8 @@ export default function NewComplaintPage() {
                         }
                       }}
                     >
-                      <div className="text-3xl md:text-4xl mb-2">{icon}</div>
-                      <div style={{ color: '#E6E6E6', fontSize: '1rem', fontWeight: 500 }}>{typeName}</div>
+                      <div className="text-2xl sm:text-3xl md:text-4xl mb-1 sm:mb-2">{icon}</div>
+                      <div className="text-xs sm:text-sm md:text-base break-words" style={{ color: '#E6E6E6', fontWeight: 500 }}>{typeName}</div>
                     </button>
                   );
                 })}
@@ -555,19 +536,24 @@ export default function NewComplaintPage() {
           {/* Add Custom Type Modal */}
           {showAddTypeModal && (
             <div 
-              className="fixed inset-0 flex items-center justify-center z-50"
+              className="fixed inset-0 flex items-center justify-center z-50 p-3 sm:p-4"
               style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
               onClick={() => !addingType && setShowAddTypeModal(false)}
             >
               <div 
-                className="rounded-lg p-6 md:p-8 max-w-md w-full mx-4"
-                style={{ backgroundColor: '#2A2B30', border: '2px solid #E6E6E6' }}
+                className="rounded-lg p-4 sm:p-6 md:p-8 w-full max-w-md max-h-[90vh] overflow-y-auto"
+                style={{ 
+                  backgroundColor: '#2A2B30', 
+                  border: '2px solid #E6E6E6',
+                  maxWidth: 'min(calc(100vw - 1.5rem), 28rem)',
+                  width: '100%',
+                }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <h2 className="text-2xl font-bold mb-4" style={{ color: '#E6E6E6' }}>Add Custom Type</h2>
-                <div className="space-y-4">
+                <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-3 sm:mb-4" style={{ color: '#E6E6E6' }}>Add Custom Type</h2>
+                <div className="space-y-3 sm:space-y-4">
                   <div>
-                    <label className="block mb-2" style={{ color: '#E6E6E6', fontSize: '1rem', fontWeight: 500 }}>
+                    <label className="block mb-2 text-sm sm:text-base" style={{ color: '#E6E6E6', fontWeight: 500 }}>
                       Type Name
                     </label>
                     <input
@@ -575,12 +561,14 @@ export default function NewComplaintPage() {
                       value={newTypeName}
                       onChange={(e) => setNewTypeName(e.target.value)}
                       placeholder="Enter type name"
-                      className="w-full rounded-lg p-3"
+                      className="w-full rounded-lg p-2.5 sm:p-3 text-sm sm:text-base"
                       style={{
                         backgroundColor: '#1F2022',
                         border: '2px solid #E6E6E6',
                         color: '#E6E6E6',
-                        fontSize: '1rem',
+                        minHeight: '44px',
+                        width: '100%',
+                        boxSizing: 'border-box',
                       }}
                       disabled={addingType}
                       onKeyDown={(e) => {
@@ -590,7 +578,7 @@ export default function NewComplaintPage() {
                       }}
                     />
                   </div>
-                  <div className="flex gap-3 justify-end">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end">
                     <button
                       type="button"
                       onClick={() => {
@@ -598,12 +586,14 @@ export default function NewComplaintPage() {
                         setNewTypeName('');
                       }}
                       disabled={addingType}
-                      className="px-4 py-2 rounded font-semibold transition-colors"
+                      className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded font-semibold transition-colors text-sm sm:text-base"
                       style={{
                         backgroundColor: '#2A2B30',
                         color: '#E6E6E6',
                         border: '2px solid #E6E6E6',
                         opacity: addingType ? 0.5 : 1,
+                        minHeight: '44px',
+                        cursor: addingType ? 'not-allowed' : 'pointer',
                       }}
                     >
                       Cancel
@@ -612,11 +602,13 @@ export default function NewComplaintPage() {
                       type="button"
                       onClick={handleAddType}
                       disabled={!newTypeName.trim() || addingType}
-                      className="px-4 py-2 rounded font-semibold transition-colors"
+                      className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded font-semibold transition-colors text-sm sm:text-base"
                       style={{
                         backgroundColor: (!newTypeName.trim() || addingType) ? '#2A2B30' : '#2AB3EE',
                         color: '#E6E6E6',
                         opacity: (!newTypeName.trim() || addingType) ? 0.5 : 1,
+                        minHeight: '44px',
+                        cursor: (!newTypeName.trim() || addingType) ? 'not-allowed' : 'pointer',
                       }}
                     >
                       {addingType ? 'Adding...' : 'Add Type'}
@@ -628,7 +620,7 @@ export default function NewComplaintPage() {
           )}
 
           {/* Priority Selection */}
-          <div>
+          <div className="w-full min-w-0">
             <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Priority *</label>
             <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value as Priority })}>
               <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
@@ -639,7 +631,7 @@ export default function NewComplaintPage() {
                 position="popper"
                 sideOffset={4}
                 align="start"
-                style={{ maxWidth: 'calc(100vw - 2rem)' }}
+                style={{ width: 'var(--radix-select-trigger-width)', maxWidth: 'var(--radix-select-trigger-width)' }}
               >
                 {priorities.length > 0 ? (
                   priorities.map((priority: any) => (
@@ -672,7 +664,7 @@ export default function NewComplaintPage() {
           </div>
 
           {/* Status Selection */}
-          <div>
+          <div className="w-full min-w-0">
             <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Status *</label>
             <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
               <SelectTrigger className="w-full bg-[#1F2022] border-2 border-[#E6E6E6] text-[#E6E6E6] text-base md:text-lg px-4 md:px-5 py-3 md:py-4 min-h-[52px] md:min-h-[56px] rounded-lg focus-visible:!ring-0 focus-visible:ring-offset-0 data-[state=open]:!ring-0 data-[state=open]:shadow-none">
@@ -683,7 +675,7 @@ export default function NewComplaintPage() {
                 position="popper"
                 sideOffset={4}
                 align="start"
-                style={{ maxWidth: 'calc(100vw - 2rem)' }}
+                style={{ width: 'var(--radix-select-trigger-width)', maxWidth: 'var(--radix-select-trigger-width)' }}
               >
                 {statusesLoading ? (
                   <SelectItem value="loading" disabled className="focus:bg-[#2A2B30]">Loading statuses...</SelectItem>
@@ -720,7 +712,7 @@ export default function NewComplaintPage() {
           </div>
 
           {/* Remarks */}
-          <div>
+          <div className="w-full min-w-0">
             <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Remarks (Optional)</label>
             <textarea
               value={formData.remarks}
@@ -744,7 +736,7 @@ export default function NewComplaintPage() {
           </div>
 
           {/* Description */}
-          <div>
+          <div className="w-full min-w-0">
             <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Describe What Happened *</label>
             <textarea
               value={formData.description}
@@ -820,7 +812,7 @@ export default function NewComplaintPage() {
           </div>
 
           {/* File Upload */}
-          <div>
+          <div className="w-full min-w-0">
             <label className="block mb-2 sm:mb-3 text-base sm:text-lg" style={{ color: '#E6E6E6', fontWeight: 500 }}>Attach Files (Optional)</label>
             {attachments.length > 0 && (
               <div className="mb-4">
@@ -861,13 +853,15 @@ export default function NewComplaintPage() {
                 placeholder="Upload photos and documents"
                 readOnly
                 value={attachments.length > 0 ? `${attachments.length} file(s) selected` : ''}
-                className="w-full rounded-lg outline-none transition placeholder:opacity-50 text-sm sm:text-base md:text-lg pr-12 sm:pr-14 md:pr-16 py-3 px-4 sm:py-3.5 sm:px-4.5 md:py-4 md:px-5 min-h-[48px] sm:min-h-[52px] md:min-h-[56px]"
+                className="w-full rounded-lg outline-none transition placeholder:opacity-50 text-sm sm:text-base md:text-lg pr-12 sm:pr-14 md:pr-16 py-3 px-4 sm:py-3.5 sm:px-4.5 md:py-4 md:px-5 min-h-[48px] sm:min-h-[52px] md:min-h-[56px] overflow-hidden"
                 style={{ 
                   backgroundColor: '#1F2022', 
                   borderColor: '#E6E6E6', 
                   borderWidth: '2px', 
                   borderStyle: 'solid', 
-                  color: '#E6E6E6'
+                  color: '#E6E6E6',
+                  width: '100%',
+                  boxSizing: 'border-box',
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#2AB3EE'}
                 onBlur={(e) => e.target.style.borderColor = '#E6E6E6'}
@@ -961,6 +955,7 @@ export default function NewComplaintPage() {
             </button>
           </div>
         </form>
+        </div>
       </div>
       {toast && (
         <Toast

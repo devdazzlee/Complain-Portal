@@ -23,9 +23,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" style={{ overflowX: 'hidden' }}>
       <body
         className={`${poppins.variable} antialiased`}
+        style={{ overflowX: 'hidden' }}
       >
         <QueryProvider>
           <AppProvider>

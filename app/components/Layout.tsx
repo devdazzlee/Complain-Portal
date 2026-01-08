@@ -8,6 +8,7 @@ import Logo from './Logo';
 import ProfileDropdown from './ProfileDropdown';
 import SearchModal from './SearchModal';
 import Sidebar from './Sidebar';
+import { Menu, X } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,6 +19,7 @@ export default function Layout({ children, role = 'provider' }: LayoutProps) {
   const { currentUser } = useApp();
   const { data: notifications = [] } = useNotifications();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Calculate unread count from real API data
   // Handle different API response formats: is_read (boolean), isRead (boolean), or read (number 0/1)
@@ -37,13 +39,29 @@ export default function Layout({ children, role = 'provider' }: LayoutProps) {
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#1F2022', color: '#E6E6E6' }}>
       {/* Sidebar */}
-      <Sidebar role={role} />
+      <Sidebar role={role} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col w-full md:ml-[280px] md:w-[calc(100%-280px)]">
+      <div className="flex-1 flex flex-col w-full md:ml-[280px] md:w-[calc(100%-280px)] overflow-x-hidden">
         {/* Header */}
         <header style={{ backgroundColor: '#2A2B30' }} className="px-4 md:px-5 py-4 shrink-0 sticky top-0 z-30">
           <div className="flex items-center justify-end w-full">
+            {/* Hamburger Button - Mobile Only */}
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="flex md:hidden items-center justify-center p-2 rounded-lg transition-colors shrink-0 mr-auto"
+              style={{
+                backgroundColor: 'transparent',
+                color: '#E6E6E6',
+                minWidth: '44px',
+                minHeight: '44px',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#2AB3EE'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#E6E6E6'}
+              aria-label="Toggle menu"
+            >
+              {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
             <div className="flex items-center gap-2 md:gap-3">
               <Link href={notificationsPath} className="relative flex items-center justify-center transition-colors shrink-0 hidden md:flex" style={{ width: '44px', height: '44px', color: '#E6E6E6' }} onMouseEnter={(e) => e.currentTarget.style.color = '#2AB3EE'} onMouseLeave={(e) => e.currentTarget.style.color = '#E6E6E6'}>
                 <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -57,14 +75,26 @@ export default function Layout({ children, role = 'provider' }: LayoutProps) {
               </Link>
               <button 
                 onClick={() => setIsSearchOpen(true)}
-                className="flex items-center justify-center shrink-0 hidden md:flex transition-colors" 
-                style={{ color: '#E6E6E6', width: '44px', height: '44px' }} 
+                className="relative flex items-center justify-center transition-colors shrink-0 hidden md:flex" 
+                style={{  height: '44px', color: '#E6E6E6' }} 
                 onMouseEnter={(e) => e.currentTarget.style.color = '#2AB3EE'} 
                 onMouseLeave={(e) => e.currentTarget.style.color = '#E6E6E6'}
                 title="Search complaints"
               >
-                <svg className="w-6 h-6 md:w-7 md:h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <svg 
+                  className="w-6 h-6 md:w-7 md:h-7" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                  style={{ display: 'block' }}
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    style={{ stroke: 'currentColor' }}
+                  />
                 </svg>
               </button>
               <ProfileDropdown 
@@ -78,7 +108,7 @@ export default function Layout({ children, role = 'provider' }: LayoutProps) {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 px-4 md:px-5 py-4 md:py-6 md:py-8 overflow-auto">
+        <main className="flex-1 px-4 md:px-5 py-4 md:py-8 overflow-auto overflow-x-hidden">
           {children}
         </main>
 
