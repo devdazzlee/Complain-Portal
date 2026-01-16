@@ -1,1 +1,1 @@
-export const backendUrl = "https://interdorsal-insufficiently-lakita.ngrok-free.dev/api/complaint-portal";
+export const backendUrl = "https://a593ff3a17d5.ngrok-free.app/api/complaint-portal";
